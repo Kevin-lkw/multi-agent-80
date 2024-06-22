@@ -8,7 +8,7 @@ The mxnet version under python 3.6 is 1.4.0.
 ```
 
 # Checkpoint
-Every user on Botzone can have a isolated storage of 268435456 bytes maximum for its bots to read or write. To access, the path is `data` folder under current working directory when running bot.
+Every user on Botzone can have a isolated storage of 268435456 bytes (256 MB) maximum for its bots to read or write. To access, the path is `data` folder under current working directory when running bot.
 
 # Upload files
 Zip all python codes and make sure `__main__.py` is included in the root.
