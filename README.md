@@ -1,4 +1,4 @@
-![image](https://github.com/Kevin-lkw/multi-agent-80/assets/133663873/11bde878-5b7b-4502-9c7e-c73418b8b8f7)# Environment
+# Environment
 ## python(2/3): 
 Both support numpy, scipy, TensorFlow under CPU, theano, pytorch (0.4.0, except python 3.6) and mxnet (0.12.0), as well as keras (2.1.6), lasagne, scikit-image and h5py.
 ```
