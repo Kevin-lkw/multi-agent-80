@@ -90,7 +90,20 @@ def checkPokerType(poker, level): #poker: list[int]
         return "tractor" # 说明是拖拉机
     
     return "suspect"
-    
+weight_dict = {'2': 0, '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6,
+               '9': 7, '0': 8, 'J': 9, 'Q': 10, 'K': 11, 'A':12}
+
+def assignWight(poker, level):
+    if poker[1] == level:
+        return 13
+    return weight_dict[poker[1]]
+def expected_value(level):
+    for i in pointorder:
+        if i == level:
+            sum += 13
+        else:
+            sum += weight_dict[i]
+    return sum / 4
 def call_Snatch(get_card, deck, called, snatched, level):
 # get_card: new card in this turn (int)
 # deck: your deck (list[int]) before getting the new card
@@ -98,22 +111,80 @@ def call_Snatch(get_card, deck, called, snatched, level):
 # level: level
 # return -> list[int]
     response = []
-## 目前的策略是一拿到牌立刻报/反，之后不再报/反
-## 不反无主
-    deck_poker = [Num2Poker(id) for id in deck]
-    get_poker = Num2Poker(get_card)
-    if get_poker[1] == level:
-        if called == -1:
-            response = [get_card]
-        elif snatched == -1:
-            if (get_card + 54) % 108 in deck:
-                response = [get_card, (get_card + 54) % 108]
+    # 报主策略：如果当前的主牌加权平均大于期望，报
+    deck.append(get_card)
+    current = expected_value(level)
+    if called == -1:
+        for suit in suitset:
+            major_level_card = []
+            level_count = 0
+            value = 0
+            for poker_num in deck:
+                poker = Num2Poker(poker_num)
+                if poker[0] != suit:
+                    continue
+                if poker[1] == level:
+                    level_count += 1
+                    major_level_card.append(poker_num)
+                value += assignWight(poker, level)
+
+            if value > current and level_count > 0:
+                current = value
+                response = major_level_card
+    
+    elif snatched == -1:
+        # 反主策略：如果当前的可反花色加权平均大于主色，反
+        # 不反无主
+        suit = called
+        current = 0
+        for poker_num in deck:
+            poker = Num2Poker(poker_num)
+            if poker[0] != suit:
+                continue
+            current += assignWight(poker, level)
+
+        for suit in suitset:
+            major_level_card = []
+            level_count = 0
+            value = 0
+            for poker_num in deck:
+                poker = Num2Poker(poker_num)
+                if poker[0] != suit:
+                    continue
+                if poker[1] == level:
+                    level_count += 1
+                    major_level_card.append(poker_num)
+                value += assignWight(poker, level)
+            if value > current and level_count == 2:
+                current = value
+                response = major_level_card
     return response
 
-def cover_Pub(old_public, deck):
-# old_public: raw publiccard (list[int])
-## 直接盖回去
-    return old_public
+def cover_Pub(old_public, deck, level, major):
+    deck.append(old_public)
+    response = []
+    # 尝试灭一色
+    suit_card = {}
+    for suit in suitset:
+        if suit == major:
+            continue
+        suit_card[suit] = []
+        for poker_num in deck:
+            poker = Num2Poker(poker_num)
+            if poker[0] == suit and poker[1] != level and poker[1] != 'A':
+                suit_card[suit].append(poker_num)
+    for suit,card in suit_card:
+        suit_card[suit] = sorted(card, key=lambda x: weight_dict[x[1]])
+        pass 
+    suit_card = sorted(suit_card.items(), key=lambda x: len(x[1]))
+    
+    for suit, card in suit_card:
+        for poker_num in card:
+            response.append(poker_num)
+            if len(response) == 8:
+                return response
+    if response < 8:
+        raise NotImplementedError("No enough cards to cover the public cards")
 
 def playCard(history, hold, played, selfid, wrapper, mv_gen, model):
     # generating obs
@@ -212,7 +283,9 @@ if curr_request["stage"] == "deal":
     response = call_Snatch(get_card, hold, called, snatched, level)
 elif curr_request["stage"] == "cover":
     publiccard = curr_request["deliver"]
-    response = cover_Pub(publiccard, hold)
+    level = curr_request["global"]["level"]
+    major = curr_request["global"]["banking"]["major"]
+    response = cover_Pub(publiccard, hold, level, major)
 elif curr_request["stage"] == "play":
     level = curr_request["global"]["level"]
     major = curr_request["global"]["banking"]["major"]
