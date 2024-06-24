@@ -90,14 +90,15 @@ def checkPokerType(poker, level): #poker: list[int]
         return "tractor" # 说明是拖拉机
     
     return "suspect"
-weight_dict = {'2': 0, '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6,
-               '9': 7, '0': 8, 'J': 9, 'Q': 10, 'K': 11, 'A':12}
+weight_dict = {'2': 6, '3': 7, '4': 8, '5': 9, '6': 10, '7': 11, '8': 12,
+               '9': 13, '0': 14, 'J': 15, 'Q': 16, 'K': 17, 'A':18}
 
 def assignWight(poker, level):
     if poker[1] == level:
-        return 13
+        return 19
     return weight_dict[poker[1]]
 def expected_value(level):
+    sum = 0
     for i in pointorder:
         if i == level:
             sum += 13
@@ -161,7 +162,7 @@ def call_Snatch(get_card, deck, called, snatched, level):
     return response
 
 def cover_Pub(old_public, deck, level, major):
-    deck.append(old_public)
+    deck = deck + old_public
     response = []
     # 尝试灭一色
     suit_card = {}
@@ -173,9 +174,8 @@ def cover_Pub(old_public, deck, level, major):
             poker = Num2Poker(poker_num)
             if poker[0] == suit and poker[1] != level and poker[1] != 'A':
                 suit_card[suit].append(poker_num)
-    for suit,card in suit_card:
-        suit_card[suit] = sorted(card, key=lambda x: weight_dict[x[1]])
-        pass 
+    for suit,card in suit_card.items():
+        suit_card[suit] = sorted(card, key=lambda x: weight_dict[Num2Poker(x)[1]])
     suit_card = sorted(suit_card.items(), key=lambda x: len(x[1]))
     
     for suit, card in suit_card:
@@ -249,7 +249,7 @@ else:
 
 # loading model
 model = CNNModel()
-data_dir = '/data/tractor_model.pt' # to be modified
+data_dir = '/data/model_4043.pt' # to be modified
 model.load_state_dict(torch.load(data_dir, map_location = torch.device('cpu')))
 
 hold = []
