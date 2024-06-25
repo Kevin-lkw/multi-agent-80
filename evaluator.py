@@ -34,7 +34,6 @@ class Evaluator(Process):
                 best_model.load_state_dict(best_state_dict)
 
             total_reward = 0
-        
             for _ in range(self.config['eval_episodes']):
                 obs, action_options = env.reset()
                 done = False
@@ -90,8 +89,6 @@ class Evaluator(Process):
                     obs = next_obs
 
                 for agent_name, agent_data in episode_data.items():
-                    if agent_name is not env.agent_names[0]:
-                        continue
                     if len(agent_data['action']) < len(agent_data['reward']):
                         agent_data['reward'].pop(0)
                     obs = np.stack(agent_data['state']['observation'])
