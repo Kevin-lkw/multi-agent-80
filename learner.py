@@ -5,7 +5,7 @@ import torch
 from torch.nn import functional as F
 
 from replay_buffer import ReplayBuffer
-from model_pool import ModelPoolServer
+from model_pool import ModelPoolServer, ModelPoolClient
 from model import CNNModel
 
 class Learner(Process):
@@ -84,3 +84,14 @@ class Learner(Process):
                 torch.save(model.state_dict(), path)
                 cur_time = t
             iterations += 1
+
+            # Check if this is the best model
+            model_pool_client = ModelPoolClient(self.config['model_pool_name'])
+            latest = model_pool_client.get_latest_model()
+            #print(f"Score of model_{latest['id']} is {latest['score']}")
+            if 'score' in latest and latest['score'] > self.best_score:
+                self.best_score = latest['score']
+                self.best_model_id = latest['id']
+                best_path = self.config['best_model_path'] + 'best_model_%d.pt' % self.best_model_id
+                torch.save(model.state_dict(), best_path)
+                print(f"New best model saved: {self.best_model_id} with score {self.best_score}")

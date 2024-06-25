@@ -85,7 +85,7 @@ class Actor(Process):
                     for agent_name in rewards: 
                         episode_data[agent_name]['reward'].append(rewards[agent_name])
                 obs = next_obs
-            print(self.name, 'Episode', episode, 'Model', latest['id'], 'Reward', rewards)
+            #print(self.name, 'Episode', episode, 'Model', latest['id'], 'Reward', rewards)
             
             # postprocessing episode data for each agent
             for agent_name, agent_data in episode_data.items():
