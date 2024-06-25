@@ -1,7 +1,7 @@
 from replay_buffer import ReplayBuffer
 from actor import Actor
 from learner import Learner
-from evaluator import Evaluator, plot_training_curve
+from evaluator import Evaluator
 from multiprocessing import Manager
 
 if __name__ == '__main__':
@@ -11,7 +11,7 @@ if __name__ == '__main__':
         'model_pool_size': 20,
         'model_pool_name': 'model-pool',
         'num_actors': 4,
-        'episodes_per_actor': 200,
+        'episodes_per_actor': 8000,
         'gamma': 0.98,
         'lambda': 0.95,
         'min_sample': 200,
@@ -25,13 +25,13 @@ if __name__ == '__main__':
         'ckpt_save_interval': 300,
         'ckpt_save_path': 'checkpoint/',
         'best_model_path': 'best_model/',
-        'eval_episodes': 20,
-        'eval_interval': 6,  # Evaluate every 6 seconds
+        'eval_episodes': 40,
+        'eval_interval': 5,  # Sleep 5 seconds
         'plot_save_path': 'training_curve.png',
     }
     
     manager = Manager()
-    shared_list = manager.list()
+    #shared_list = manager.list()
 
     replay_buffer = ReplayBuffer(config['replay_buffer_size'], config['replay_buffer_episode'])
     
@@ -41,7 +41,8 @@ if __name__ == '__main__':
         actor = Actor(config, replay_buffer)
         actors.append(actor)
     learner = Learner(config, replay_buffer)
-    evaluator_1 = Evaluator(config, shared_list)
+    #evaluator_1 = Evaluator(config, shared_list)
+    evaluator_1 = Evaluator(config)
 
     
     for actor in actors: actor.start()
@@ -53,7 +54,4 @@ if __name__ == '__main__':
     for actor in actors: actor.join()
     learner.terminate()
     evaluator_1.terminate()
-    print(list(shared_list))
-
-    plot_training_curve(list(shared_list), config['plot_save_path'])
-    print(f"Training curve saved to {config['plot_save_path']}")
+    #print(list(shared_list))

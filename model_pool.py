@@ -76,3 +76,11 @@ class ModelPoolClient:
         memory = SharedMemory(name = metadata['_addr'])
         state_dict = cPickle.loads(memory.buf)
         return state_dict
+    
+    def update_model_score(self, model_id, score):
+        self._update_model_list()
+        for n in range(self.capacity):
+            if self.model_list[n] and self.model_list[n]['id'] == model_id:
+                self.model_list[n]['score'] = score
+                self.shared_model_list[n] = cPickle.dumps(self.model_list[n])
+                break
