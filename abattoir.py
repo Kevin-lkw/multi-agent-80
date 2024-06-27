@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from model import ResNet18  # Assuming this is your ResNet18 model definition
+from model import get_model  # Assuming this is your ResNet18 model definition
 from env import TractorEnv  # Assuming this is your TractorEnv definition
 from wrapper import cardWrapper  # Assuming this is your cardWrapper definition
 import random
@@ -8,15 +8,15 @@ import random
 # Configuration parameters
 config = {
     'device': 'cuda',
-    'model_1_path': 'resnet_best_model/',
-    'model_2_path': 'resnet_best_model/',
-    'model_1_name': 'best_model_408',
-    'model_2_name': 'best_model_1682',
+    'model_1_path': 'best_model/',
+    'model_2_path': 'best_model/',
+    'model_1_name': 'best_model_1548',
+    'model_2_name': 'best_model_0',
     'batch_size': 1024,
 }
 
-model_1 = ResNet18().to(config['device'])
-model_2 = ResNet18().to(config['device'])
+model_1 = get_model().to(config['device'])
+model_2 = get_model().to(config['device'])
 envs = [TractorEnv() for _ in range(config['batch_size'])]
 wrapper = cardWrapper()
 

@@ -6,7 +6,7 @@ from torch.nn import functional as F
 
 from replay_buffer import ReplayBuffer
 from model_pool import ModelPoolServer, ModelPoolClient
-from model import CNNModel, ResNet18
+from model import get_model
 
 class Learner(Process):
     
@@ -22,7 +22,7 @@ class Learner(Process):
         # initialize model params
         device = torch.device(self.config['device'])
         #model = CNNModel()
-        model = ResNet18()
+        model = get_model()
         
         # send to model pool
         model_pool.push(model.state_dict()) # push cpu-only tensor to model_pool

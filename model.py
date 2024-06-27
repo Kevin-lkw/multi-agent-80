@@ -1,5 +1,7 @@
 import torch
 from torch import nn
+def get_model():
+    return CNNModel()
 
 class CNNModel(nn.Module):
 

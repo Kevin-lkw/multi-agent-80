@@ -1,11 +1,17 @@
 import json
 import os
-from model import CNNModel
+from model import get_model
 import torch
 from wrapper import cardWrapper
 from mvGen import move_generator
 import numpy as np
 from collections import Counter
+
+# loading model
+model = get_model()
+data_dir = '/data/model_2203.pt' # to be modified
+model.load_state_dict(torch.load(data_dir, map_location = torch.device('cpu')))
+
 
 cardscale = ['A','2','3','4','5','6','7','8','9','0','J','Q','K']
 suitset = ['s','h','c','d']
@@ -247,10 +253,7 @@ else:
     with open("log_forAI.json") as fo:
         full_input = json.load(fo)
 
-# loading model
-model = CNNModel()
-data_dir = '/data/model_4043.pt' # to be modified
-model.load_state_dict(torch.load(data_dir, map_location = torch.device('cpu')))
+
 
 hold = []
 played = [[], [], [], []]

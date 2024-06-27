@@ -3,7 +3,7 @@ import time
 import torch
 import numpy as np
 from model_pool import ModelPoolClient
-from model import CNNModel, ResNet18
+from model import get_model
 from env import TractorEnv
 from wrapper import cardWrapper
 import random
@@ -15,8 +15,8 @@ class Evaluator(Process):
 
     def run(self):
         model_pool = ModelPoolClient(self.config['model_pool_name'])
-        current_model = ResNet18().to(self.config['device'])
-        best_model = ResNet18().to(self.config['device'])
+        current_model = get_model().to(self.config['device'])
+        best_model = get_model().to(self.config['device'])
         env = TractorEnv()
         self.wrapper = cardWrapper()
 

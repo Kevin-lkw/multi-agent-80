@@ -18,16 +18,15 @@ if __name__ == '__main__':
         'batch_size': 256,
         'epochs': 5,
         'clip': 0.2,
-        'lr': 3e-4,
+        'lr': 3e-5,
         'value_coeff': 1,
         'entropy_coeff': 0.01,
         'device': 'cuda',
-        'ckpt_save_interval': 300,
-        'ckpt_save_path': 'resnet_model/',
-        'best_model_path': 'resnet_best_model/',
-        'eval_episodes': 40,
-        'eval_interval': 5,  # Sleep 5 seconds
-        'eval_batch_size': 1024,
+        'ckpt_save_interval': 30,
+        'ckpt_save_path': 'checkpoint/',
+        'best_model_path': 'best_model/',
+        'eval_interval': 1,  # Sleep 1 seconds
+        'eval_batch_size': 512,
     }
     
     manager = Manager()
