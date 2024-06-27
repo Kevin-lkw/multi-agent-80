@@ -1,143 +1,93 @@
-from multiprocessing import Process
-import time
 import torch
 import numpy as np
-from model_pool import ModelPoolClient
-from model import CNNModel
-from env import TractorEnv
-from wrapper import cardWrapper
+from model import ResNet18  # Assuming this is your ResNet18 model definition
+from env import TractorEnv  # Assuming this is your TractorEnv definition
+from wrapper import cardWrapper  # Assuming this is your cardWrapper definition
+import random
 
+# Configuration parameters
 config = {
-        'replay_buffer_size': 50000,
-        'replay_buffer_episode': 400,
-        'model_pool_size': 20,
-        'model_pool_name': 'model-pool',
-        'num_actors': 4,
-        'episodes_per_actor': 8000,
-        'gamma': 0.98,
-        'lambda': 0.95,
-        'min_sample': 200,
-        'batch_size': 256,
-        'epochs': 5,
-        'clip': 0.2,
-        'lr': 3e-5,
-        'value_coeff': 1,
-        'entropy_coeff': 0.01,
-        'device': 'cpu',
-        'ckpt_save_interval': 300,
-        'ckpt_save_path': 'checkpoint/',
-        'eval_interval': 5,  # Sleep 5 seconds
-        'plot_save_path': 'training_curve.png',
-        ########################################################################
-        ########################### Evaluate Config ############################
-        ########################################################################
-        'model_1_path': 'best_model/',
-        'model_2_path': 'best_model/',
-        'model_1_name':'best_model_705',
-        'model_2_name':'best_model_40',
-        'eval_episodes': 640,
-    }
+    'device': 'cuda',
+    'model_1_path': 'resnet_best_model/',
+    'model_2_path': 'resnet_best_model/',
+    'model_1_name': 'best_model_408',
+    'model_2_name': 'best_model_1682',
+    'batch_size': 1024,
+}
 
-
-
-model_1 = CNNModel()
-model_2 = CNNModel()
-env = TractorEnv()
+model_1 = ResNet18().to(config['device'])
+model_2 = ResNet18().to(config['device'])
+envs = [TractorEnv() for _ in range(config['batch_size'])]
 wrapper = cardWrapper()
 
-
-state_dict_1 = torch.load(f"{config['model_1_path']}{config['model_1_name']}.pt")
+state_dict_1 = torch.load(f"{config['model_1_path']}{config['model_1_name']}.pt", map_location=config['device'])
 model_1.load_state_dict(state_dict_1)
 
-state_dict_2 = torch.load(f"{config['model_2_path']}{config['model_2_name']}.pt")
+state_dict_2 = torch.load(f"{config['model_2_path']}{config['model_2_name']}.pt", map_location=config['device'])
 model_2.load_state_dict(state_dict_2)
 
 total_reward = 0
-for _ in range(config['eval_episodes']):
-    obs, action_options = env.reset()
-    done = False
-    episode_reward = {}
-    #####################################################################################
-    
-    # run one episode and collect data
+
+# Initialize environments
+obs_batch = []
+action_options_batch = []
+for env in envs:
     obs, action_options = env.reset(major='r')
-    episode_data = {agent_name: {
-        'state' : {
-            'observation': [],
-            'action_mask': []
-        },
-        'action' : [],
-        'reward' : [],
-        'value' : []
-    } for agent_name in env.agent_names}
+    obs_batch.append(obs)
+    action_options_batch.append(action_options)
 
-    done = False
-    while not done:
-        state = {}
-        player = obs['id']
-        agent_name = env.agent_names[player]
-        agent_data = episode_data[agent_name]
-        obs_mat, action_mask = wrapper.obsWrap(obs, action_options)
-        agent_data['state']['observation'].append(obs_mat)
-        agent_data['state']['action_mask'].append(action_mask)
-        state['observation'] = torch.tensor(obs_mat, dtype = torch.float).unsqueeze(0)
-        state['action_mask'] = torch.tensor(action_mask, dtype = torch.float).unsqueeze(0)
-        model_1.train(False) # Batch Norm inference mode
-        model_2.train(False) # Batch Norm inference mode
+done_batch = [False] * config['batch_size']
+episode_rewards = [{} for _ in range(config['batch_size'])]
 
+while not all(done_batch):
+    player = obs_batch[0]['id']
+    obs_mat_batch, action_mask_batch = [], []
+    for i, (obs, action_options) in enumerate(zip(obs_batch, action_options_batch)):
+        if not done_batch[i]:
+            obs_mat, action_mask = wrapper.obsWrap(obs, action_options)
+            obs_mat_batch.append(obs_mat)
+            action_mask_batch.append(action_mask)
+        else:
+            obs_mat_batch.append(np.zeros_like(obs_mat))  # or some other default value
+            action_mask_batch.append(np.zeros_like(action_mask))  # or some other default value
 
-        with torch.no_grad():
-            if player % 2 == 0:  # Current model plays
-                logits, value = model_1(state)
-            else:  # Best model plays
-                logits, value = model_2(state)
-            action_dist = torch.distributions.Categorical(logits = logits)
-            action = action_dist.sample().item()
-            value = value.item()
-            
-        agent_data['action'].append(action)
-        agent_data['value'].append(value)
-        # interpreting actions
-        action_cards = action_options[action]
-        response = env.action_intpt(action_cards, player)
-        # interact with env
-        next_obs, action_options, rewards, done = env.step(response)
-        if rewards:
-            # rewards are added per four moves (1 move for each player) on all four players
-            for agent_name in rewards: 
-                episode_data[agent_name]['reward'].append(rewards[agent_name])
-        obs = next_obs
+    obs_mat_batch = torch.tensor(np.array(obs_mat_batch), dtype=torch.float).to(config['device'])
+    action_mask_batch = torch.tensor(np.array(action_mask_batch), dtype=torch.float).to(config['device'])
 
-    for agent_name, agent_data in episode_data.items():
-        if len(agent_data['action']) < len(agent_data['reward']):
-            agent_data['reward'].pop(0)
-        obs = np.stack(agent_data['state']['observation'])
-        mask = np.stack(agent_data['state']['action_mask'])
-        actions = np.array(agent_data['action'], dtype = np.int64)
-        rewards = np.array(agent_data['reward'], dtype = np.float32)
-        values = np.array(agent_data['value'], dtype = np.float32)
-        next_values = np.array(agent_data['value'][1:] + [0], dtype = np.float32)
-        
-        td_target = rewards + next_values * config['gamma']
-        td_delta = td_target - values
-        advs = []
-        adv = 0
-        for delta in td_delta[::-1]:
-            adv = config['gamma'] * config['lambda'] * adv + delta
-            advs.append(adv) # GAE
-        advs.reverse()
-        advantages = np.array(advs, dtype = np.float32)
-        # Maybe GAE is better. But for eval, I prefer rewards may bring me more interpretability.
-        episode_reward[agent_name] = rewards 
-    #####################################################################################
-    #print(episode_reward) [  5.,   0., -10.,  10.,  30.,   0.,  10.,  10.,   0.,   5.,   5.,  5., -25.,  20.,  -5.,  -5.,  10.,   5., -10.,  10.,  10.,  -3.] Why 3 here ?
-    total_reward += np.sum(episode_reward[env.agent_names[0]])
+    model_1.eval()
+    model_2.eval()
 
+    with torch.no_grad():
+        logits_batch, value_batch = [], []
 
+        state = {'observation': obs_mat_batch, 'action_mask': action_mask_batch}
+        if player % 2 == random.randint(0, 1):
+            logits_batch, value_batch = model_1(state)
+        else:
+            logits_batch, value_batch = model_2(state)
 
-avg_reward = total_reward / config['eval_episodes']
+        #actions_batch = [torch.distributions.Categorical(logits=logits).sample().item() for logits in logits_batch]
+        actions_batch = [torch.argmax(logits).item() for logits in logits_batch]
 
-print(avg_reward)
+        values_batch = [value.item() for value in value_batch]
 
+    # Execute actions and get new state and reward
+    for i, env in enumerate(envs):
+        if not done_batch[i]:
+            action_cards = action_options_batch[i][actions_batch[i]]
+            response = env.action_intpt(action_cards, obs_batch[i]['id'])
+            next_obs, next_action_options, rewards, done = env.step(response)
+            if rewards:
+                for agent_name in rewards:
+                    if agent_name not in episode_rewards[i]:
+                        episode_rewards[i][agent_name] = []
+                    episode_rewards[i][agent_name].append(rewards[agent_name])
+            obs_batch[i] = next_obs
+            action_options_batch[i] = next_action_options
+            done_batch[i] = done
 
-
+total_rewards = np.array([sum(rewards[env.agent_names[0]]) for rewards in episode_rewards])
+total_wins = np.array([sum(rewards[env.agent_names[0]])>0 for rewards in episode_rewards])
+avg_reward = np.mean(total_rewards)
+win_rate = np.mean(total_wins)
+print(f"Average Reward: {avg_reward}\n Win Rate: {win_rate} ")

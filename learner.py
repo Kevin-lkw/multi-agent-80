@@ -6,7 +6,7 @@ from torch.nn import functional as F
 
 from replay_buffer import ReplayBuffer
 from model_pool import ModelPoolServer, ModelPoolClient
-from model import CNNModel
+from model import CNNModel, ResNet18
 
 class Learner(Process):
     
@@ -21,14 +21,15 @@ class Learner(Process):
         
         # initialize model params
         device = torch.device(self.config['device'])
-        model = CNNModel()
+        #model = CNNModel()
+        model = ResNet18()
         
         # send to model pool
         model_pool.push(model.state_dict()) # push cpu-only tensor to model_pool
         model = model.to(device)
         
         # training
-        optimizer = torch.optim.Adam(model.parameters(), lr = self.config['lr'])
+        optimizer = torch.optim.Adam(model.parameters(), lr = self.config['lr'], eps = 1e-5,)
         
         # wait for initial samples
         while self.replay_buffer.size() < self.config['min_sample']:
@@ -48,7 +49,12 @@ class Learner(Process):
             actions = torch.tensor(batch['action']).unsqueeze(-1).to(device)
             advs = torch.tensor(batch['adv']).to(device)
             targets = torch.tensor(batch['target']).to(device)
-            
+
+            # Trick 1 Normalize advantages
+            advs_mean = advs.mean()
+            advs_std = advs.std()
+            advs = (advs - advs_mean) / (advs_std + 1e-8)  # Adding a small value to avoid division by zero
+
             print('Iteration %d, replay buffer in %d out %d' % (iterations, self.replay_buffer.stats['sample_in'], self.replay_buffer.stats['sample_out']))
             
             # calculate PPO loss

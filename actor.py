@@ -5,7 +5,7 @@ import torch
 from replay_buffer import ReplayBuffer
 from model_pool import ModelPoolClient
 from env import TractorEnv
-from model import CNNModel
+from model import CNNModel, ResNet18
 
 from wrapper import cardWrapper
 
@@ -24,7 +24,7 @@ class Actor(Process):
         model_pool = ModelPoolClient(self.config['model_pool_name'])
         
         # create network model
-        model = CNNModel()
+        model = ResNet18()
         
         # load initial model
         version = model_pool.get_latest_model()
