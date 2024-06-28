@@ -64,6 +64,7 @@ class TractorEnv():
         
         self.round += 1
         # Do the first round
+        self.current_player = self.banker_pos
         return self._get_obs(self.banker_pos), self._get_action_options(self.banker_pos)
 
     
@@ -115,7 +116,7 @@ class TractorEnv():
                 self._reveal(curr_player, winner)
                 self.done = True
         self.round += 1
-        
+        self.current_player = next_player
         if self.reward:
             return self._get_obs(next_player), self._get_action_options(next_player), self.reward, self.done
         return self._get_obs(next_player), self._get_action_options(next_player), None, self.done
@@ -868,4 +869,15 @@ class TractorEnv():
         player_deck = self.player_decks[player]
         action = self._name2id_seq(action, player_deck)
         return {'player': player, 'action': action}
-        
+    
+    def pack_data(self):
+        return {
+            "level": self.level,
+            "major": self.major,
+            "covered_card": self.covered_card,
+            "player_decks": self.player_decks,
+            "played_cards": self.played_cards,
+            "history": self.history,
+            "player": self.current_player,
+            "bank_pos": self.banker_pos,
+        }
