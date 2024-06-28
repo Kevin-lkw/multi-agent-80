@@ -87,7 +87,7 @@ class Evaluator(Process):
                 for i, env in enumerate(envs):
                     if not done_batch[i]:
                         action_cards = action_options_batch[i][actions_batch[i]]
-                        seq_history_batch[i].append({'player': player, 'action': action_options})
+                        seq_history_batch[i].append({'player': player, 'action': action_cards})
                         response = env.action_intpt(action_cards, obs_batch[i]['id'])
                         next_obs, next_action_options, rewards, done = env.step(response)
                         if rewards:

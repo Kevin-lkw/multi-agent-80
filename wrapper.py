@@ -83,15 +83,27 @@ class cardWrapper:
             seq_mat.append(history_response_mat)
         seq_mat = np.array(seq_mat)
 
-        # Padding the seq_mat to have a fixed size of (100, 3, 4, 14)
-        pad_len = 100 - seq_mat.shape[0]
-        if pad_len == 100:
-            seq_mat_padded = np.zeros((100,3,4,14))
-        elif pad_len > 0:
-            pad_shape = (pad_len, 3, 4, 14)
-            seq_mat_padded = np.concatenate((np.zeros(pad_shape), seq_mat), axis=0)
-        else:
-            seq_mat_padded = seq_mat
+        batch_size = 4
+
+        batch_shape = (batch_size * 3, 4, 14)
+
+        num_batches = (len(seq_mat) + batch_size - 1) // batch_size
+
+        seq_mat_padded = np.zeros((25, *batch_shape))
+
+        for i in range(num_batches):
+            start_idx = i * batch_size
+            end_idx = min((i + 1) * batch_size, len(seq_mat))
+            batch = seq_mat[start_idx:end_idx]
+            
+            if len(batch) < batch_size:
+                pad_len = batch_size - len(batch)
+                pad_shape = (pad_len, 3, 4, 14)
+                batch = np.concatenate((batch, np.zeros(pad_shape)), axis=0)
+            
+            batch = batch.reshape(batch_shape)
+            
+            seq_mat_padded[i] = batch
 
         major_mat = np.zeros((2, 4, 14))
         deck_mat = np.zeros((2, 4, 14))

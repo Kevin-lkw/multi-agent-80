@@ -60,7 +60,7 @@ class CNNLSTMModel(nn.Module):
         
         # CNN to process each 3x4x14 matrix in seq_mat
         self._tower_seq_mat = nn.Sequential(
-            nn.Conv2d(3, 64, 3, 1, 1, bias=False),
+            nn.Conv2d(12, 64, 3, 1, 1, bias=False),
             nn.ReLU(True),
             nn.Conv2d(64, 128, 3, 1, 1, bias=False),
             nn.ReLU(True),
