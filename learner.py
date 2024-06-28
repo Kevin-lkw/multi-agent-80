@@ -7,6 +7,7 @@ from torch.nn import functional as F
 from replay_buffer import ReplayBuffer
 from model_pool import ModelPoolServer, ModelPoolClient
 from model import get_model
+from torch.utils.data import DataLoader, TensorDataset, BatchSampler, SubsetRandomSampler
 
 class Learner(Process):
     
@@ -14,6 +15,8 @@ class Learner(Process):
         super(Learner, self).__init__()
         self.replay_buffer = replay_buffer
         self.config = config
+        self.best_score = -float('inf')
+        self.best_model_id = None
     
     def run(self):
         # create model pool
@@ -21,7 +24,6 @@ class Learner(Process):
         
         # initialize model params
         device = torch.device(self.config['device'])
-        #model = CNNModel()
         model = get_model()
         
         # send to model pool
@@ -63,20 +65,31 @@ class Learner(Process):
             old_probs = F.softmax(old_logits, dim = 1).gather(1, actions)
             old_log_probs = torch.log(old_probs).detach()
             for _ in range(self.config['epochs']):
-                logits, values = model(states)
-                action_dist = torch.distributions.Categorical(logits = logits)
-                probs = F.softmax(logits, dim = 1).gather(1, actions)
-                log_probs = torch.log(probs)
-                ratio = torch.exp(log_probs - old_log_probs)
-                surr1 = ratio * advs
-                surr2 = torch.clamp(ratio, 1 - self.config['clip'], 1 + self.config['clip']) * advs
-                policy_loss = -torch.mean(torch.min(surr1, surr2))
-                value_loss = torch.mean(F.mse_loss(values.squeeze(-1), targets))
-                entropy_loss = -torch.mean(action_dist.entropy())
-                loss = policy_loss + self.config['value_coeff'] * value_loss + self.config['entropy_coeff'] * entropy_loss
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+                # Create a new DataLoader for each epoch to ensure mini-batches are different
+                dataset = TensorDataset(obs, mask, actions, advs, targets)
+                batch_sampler = BatchSampler(SubsetRandomSampler(range(len(dataset))), self.config['mini_batch_size'], False)
+                data_loader = DataLoader(dataset, batch_sampler=batch_sampler)
+
+                for mini_batch in data_loader:
+                    obs_mb, mask_mb, actions_mb, advs_mb, targets_mb = mini_batch
+                    states_mb = {
+                        'observation': obs_mb,
+                        'action_mask': mask_mb
+                    }
+                    logits, values = model(states_mb)
+                    action_dist = torch.distributions.Categorical(logits = logits)
+                    probs = F.softmax(logits, dim = 1).gather(1, actions_mb)
+                    log_probs = torch.log(probs)
+                    ratio = torch.exp(log_probs - old_log_probs[:log_probs.size(0)])
+                    surr1 = ratio * advs_mb
+                    surr2 = torch.clamp(ratio, 1 - self.config['clip'], 1 + self.config['clip']) * advs_mb
+                    policy_loss = -torch.mean(torch.min(surr1, surr2))
+                    value_loss = torch.mean(F.mse_loss(values.squeeze(-1), targets_mb))
+                    entropy_loss = -torch.mean(action_dist.entropy())
+                    loss = policy_loss + self.config['value_coeff'] * value_loss + self.config['entropy_coeff'] * entropy_loss
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
 
             # push new model
             model = model.to('cpu')
@@ -94,7 +107,6 @@ class Learner(Process):
             # Check if this is the best model
             model_pool_client = ModelPoolClient(self.config['model_pool_name'])
             latest = model_pool_client.get_latest_model()
-            #print(f"Score of model_{latest['id']} is {latest['score']}")
             if 'score' in latest and latest['score'] > self.best_score:
                 self.best_score = latest['score']
                 self.best_model_id = latest['id']

@@ -8,11 +8,11 @@ import random
 # Configuration parameters
 config = {
     'device': 'cuda',
-    'model_1_path': 'best_model/',
+    'model_1_path': 'best_model/', ## checkpoint or best_model
     'model_2_path': 'best_model/',
-    'model_1_name': 'best_model_1548',
+    'model_1_name': 'best_model_78', ## model_ or best_model_
     'model_2_name': 'best_model_0',
-    'batch_size': 1024,
+    'batch_size': 2048,
 }
 
 model_1 = get_model().to(config['device'])
@@ -23,8 +23,8 @@ wrapper = cardWrapper()
 state_dict_1 = torch.load(f"{config['model_1_path']}{config['model_1_name']}.pt", map_location=config['device'])
 model_1.load_state_dict(state_dict_1)
 
-state_dict_2 = torch.load(f"{config['model_2_path']}{config['model_2_name']}.pt", map_location=config['device'])
-model_2.load_state_dict(state_dict_2)
+# state_dict_2 = torch.load(f"{config['model_2_path']}{config['model_2_name']}.pt", map_location=config['device'])
+# model_2.load_state_dict(state_dict_2)
 
 total_reward = 0
 

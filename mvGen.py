@@ -114,14 +114,13 @@ class move_generator():
                     moves.append([p for k in pairset for p in [k, k]])
             else:
                 for i in range(len(trac_pairs)-pair_cnt+1): # Try to retrieve a tractor
-                    if trac_pairs[i+pair_cnt-1] == self.point_order[self.point_order.index(trac_pairs[i][1])+pair_cnt-1]:
-                        pair_set = [[self.point_order[k], self.point_order[k]] \
-                            for k in (self.point_order.index(trac_pairs[i][1]), self.point_order.index(trac_pairs[i][1])+pair_cnt-1)]
+                    if trac_pairs[i+pair_cnt-1][1] == self.point_order[self.point_order.index(trac_pairs[i][1])+pair_cnt-1]:
+                        pair_set = [[trac_pairs[k], trac_pairs[k]] for k in range(i, i+pair_cnt)]
                         moves.append([p for pair in pair_set for p in pair])
                 if len(moves) == 0:
                     pairsets = list(combinations(sel_pairs, tractor_len//2))
                     moves = [[p for k in pairset for p in [k, k]] for pairset in pairsets]
-                            
+                    
         return moves  
                         
     def gen_throw(self, deck, tgt):
