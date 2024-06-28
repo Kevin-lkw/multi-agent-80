@@ -39,29 +39,34 @@ class Evaluator(Process):
             # Initialize environments
             obs_batch = []
             action_options_batch = []
+            seq_history_batch = []
             envs = [TractorEnv() for _ in range(self.config['eval_batch_size'])]
             for env in envs:
                 obs, action_options = env.reset(major='r')
                 obs_batch.append(obs)
                 action_options_batch.append(action_options)
+                seq_history_batch.append([])
 
             done_batch = [False] * self.config['eval_batch_size']
             episode_rewards = [{} for _ in range(self.config['eval_batch_size'])]
 
             while not all(done_batch):
                 player = obs_batch[0]['id']
-                obs_mat_batch, action_mask_batch = [], []
-                for i, (obs, action_options) in enumerate(zip(obs_batch, action_options_batch)):
+                obs_mat_batch, action_mask_batch, seq_mat_batch = [], [], []
+                for i, (obs, action_options, seq_history) in enumerate(zip(obs_batch, action_options_batch, seq_history_batch)):
                     if not done_batch[i]:
-                        obs_mat, action_mask = self.wrapper.obsWrap(obs, action_options)
+                        obs_mat, action_mask, seq_mat = self.wrapper.obsWrap(obs, action_options, seq_history)
                         obs_mat_batch.append(obs_mat)
                         action_mask_batch.append(action_mask)
+                        seq_mat_batch.append(seq_mat)
                     else:
                         obs_mat_batch.append(np.zeros_like(obs_mat))  # or some other default value
                         action_mask_batch.append(np.zeros_like(action_mask))  # or some other default value
+                        seq_mat_batch.append(np.zeros_like(seq_mat))
 
                 obs_mat_batch = torch.tensor(np.array(obs_mat_batch), dtype=torch.float).to(self.config['device'])
                 action_mask_batch = torch.tensor(np.array(action_mask_batch), dtype=torch.float).to(self.config['device'])
+                seq_mat_batch = torch.tensor(np.array(seq_mat_batch), dtype=torch.float).to(self.config['device'])
 
                 current_model.eval()
                 best_model.eval()
@@ -69,7 +74,7 @@ class Evaluator(Process):
                 with torch.no_grad():
                     logits_batch, value_batch = [], []
 
-                    state = {'observation': obs_mat_batch, 'action_mask': action_mask_batch}
+                    state = {'observation': obs_mat_batch, 'action_mask': action_mask_batch, 'seq_mat': seq_mat_batch}
                     if player % 2 == random.randint(0,1):
                         logits_batch, value_batch = current_model(state)
                     else:
@@ -82,6 +87,7 @@ class Evaluator(Process):
                 for i, env in enumerate(envs):
                     if not done_batch[i]:
                         action_cards = action_options_batch[i][actions_batch[i]]
+                        seq_history_batch[i].append({'player': player, 'action': action_options})
                         response = env.action_intpt(action_cards, obs_batch[i]['id'])
                         next_obs, next_action_options, rewards, done = env.step(response)
                         if rewards:

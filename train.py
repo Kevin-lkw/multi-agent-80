@@ -8,14 +8,14 @@ if __name__ == '__main__':
     config = {
         'replay_buffer_size': 2048,
         'replay_buffer_episode': 400,
-        'model_pool_size': 20,
+        'model_pool_size': 2,
         'model_pool_name': 'model-pool',
         'num_actors': 4,
         'episodes_per_actor': 8000,
         'gamma': 0.98,
         'lambda': 0.95,
         'min_sample': 200,
-        'batch_size': 2048,
+        'batch_size': 64,
         'epochs': 10,
         'clip': 0.2,
         'lr': 3e-4,
@@ -23,11 +23,11 @@ if __name__ == '__main__':
         'entropy_coeff': 0.01,
         'device': 'cuda',
         'ckpt_save_interval': 1800,
-        'ckpt_save_path': 'checkpoint/',
-        'best_model_path': 'best_model/',
+        'ckpt_save_path': 'LSTM_model/',
+        'best_model_path': 'best_LSTM_model/',
         'eval_interval': 1,  # Sleep 1 seconds
-        'eval_batch_size': 1024,
-        'mini_batch_size': 64
+        'eval_batch_size': 4,
+        'mini_batch_size': 4
     }
     
     manager = Manager()

@@ -66,33 +66,54 @@ class cardWrapper:
         
         return cards
 
-    def obsWrap(self, obs, options):
+    def obsWrap(self, obs, options, seq_history):
         '''
         Wrapping the observation and craft the action_mask
         obs: raw obs from env
         '''
         id = obs['id']
-        major_mat = np.zeros((2,4,14))
-        deck_mat = np.zeros((2,4,14))
-        hist_mat = np.zeros((8,4,14)) # Holding no more than 4 sets of cards
-        played_mat = np.zeros((8,4,14))
-        option_mat = np.zeros((108,4,14))
-        
+        seq_mat = []
+        for history_response in seq_history:
+            player = (history_response['player'] - id) % 4  # 计算相对当前player的id
+            history_action = history_response['action']
+            player_mat = np.ones((1, 4, 14)) * player
+            history_action_mat = np.zeros((2, 4, 14))
+            self.add_card(history_action_mat, history_action)
+            history_response_mat = np.concatenate((player_mat, history_action_mat), axis=0)  # 3*4*14
+            seq_mat.append(history_response_mat)
+        seq_mat = np.array(seq_mat)
+
+        # Padding the seq_mat to have a fixed size of (100, 3, 4, 14)
+        pad_len = 100 - seq_mat.shape[0]
+        if pad_len == 100:
+            seq_mat_padded = np.zeros((100,3,4,14))
+        elif pad_len > 0:
+            pad_shape = (pad_len, 3, 4, 14)
+            seq_mat_padded = np.concatenate((np.zeros(pad_shape), seq_mat), axis=0)
+        else:
+            seq_mat_padded = seq_mat
+
+        major_mat = np.zeros((2, 4, 14))
+        deck_mat = np.zeros((2, 4, 14))
+        hist_mat = np.zeros((8, 4, 14))  # Holding no more than 4 sets of cards
+        played_mat = np.zeros((8, 4, 14))
+        option_mat = np.zeros((108, 4, 14))
+
         self.add_card(major_mat, obs['major'])
         self.add_card(deck_mat, obs['deck'])
         for i in range(len(obs['history'])):
-            self.add_card(hist_mat[i*2:(i+1)*2], obs['history'][i])
-        played_cards = obs['played'][id:]+obs['played'][:id]
+            self.add_card(hist_mat[i * 2:(i + 1) * 2], obs['history'][i])
+        played_cards = obs['played'][id:] + obs['played'][:id]
         for i in range(len(played_cards)):
-            self.add_card(played_mat[i*2:(i+1)*2], played_cards[i])
+            self.add_card(played_mat[i * 2:(i + 1) * 2], played_cards[i])
         for i in range(len(options)):
-            if i*2 >= option_mat.shape[0]:
+            if i * 2 >= option_mat.shape[0]:
                 break
-            self.add_card(option_mat[i*2:(i+1)*2], options[i])
-        
+            self.add_card(option_mat[i * 2:(i + 1) * 2], options[i])
+
         action_mask = np.zeros(54)
         action_mask[:len(options)] = 1
+
+        return np.concatenate((major_mat, deck_mat, hist_mat, played_mat, option_mat)), action_mask, seq_mat_padded
         
-        return np.concatenate((major_mat, deck_mat, hist_mat, played_mat, option_mat)), action_mask
-    
-        
+            

@@ -6,7 +6,7 @@ from replay_buffer import ReplayBuffer
 from model_pool import ModelPoolClient
 from env import TractorEnv
 from model import get_model
-
+import copy
 from wrapper import cardWrapper
 
 class Actor(Process):
@@ -49,35 +49,46 @@ class Actor(Process):
             episode_data = {agent_name: {
                 'state' : {
                     'observation': [],
-                    'action_mask': []
+                    'action_mask': [],
+                    'seq_mat': [],
                 },
                 'action' : [],
                 'reward' : [],
-                'value' : []
+                'value' : [],
             } for agent_name in env.agent_names}
             done = False
+            seq_history = []
             while not done:
                 state = {}
                 player = obs['id']
                 agent_name = env.agent_names[player]
                 agent_data = episode_data[agent_name]
-                obs_mat, action_mask = self.wrapper.obsWrap(obs, action_options)
+                obs_mat, action_mask, seq_mat = self.wrapper.obsWrap(obs, action_options, seq_history)
                 agent_data['state']['observation'].append(obs_mat)
                 agent_data['state']['action_mask'].append(action_mask)
+                agent_data['state']['seq_mat'].append(seq_mat)
                 state['observation'] = torch.tensor(obs_mat, dtype = torch.float).unsqueeze(0)
                 state['action_mask'] = torch.tensor(action_mask, dtype = torch.float).unsqueeze(0)
+                state['seq_mat'] = torch.tensor(seq_mat, dtype = torch.float).unsqueeze(0)
                 model.train(False) # Batch Norm inference mode
                 with torch.no_grad():
                     logits, value = model(state)
                     action_dist = torch.distributions.Categorical(logits = logits)
                     action = action_dist.sample().item()
                     value = value.item()
+                   
                     
                 agent_data['action'].append(action)
                 agent_data['value'].append(value)
+
+
                 # interpreting actions
                 action_cards = action_options[action]
                 response = env.action_intpt(action_cards, player)
+                # print(player,action,action_cards,response)
+                # response w.r.t. {'player': 2, 'action': [int[0,108)]}, where int is the list id of card
+                seq_history.append({'player':player, 'action': action_cards}) 
+
                 # interact with env
                 next_obs, action_options, rewards, done = env.step(response)
                 if rewards:
@@ -91,8 +102,10 @@ class Actor(Process):
             for agent_name, agent_data in episode_data.items():
                 if len(agent_data['action']) < len(agent_data['reward']):
                     agent_data['reward'].pop(0)
+                    print("after reward:", agent_data['reward'])
                 obs = np.stack(agent_data['state']['observation'])
                 mask = np.stack(agent_data['state']['action_mask'])
+                seq_mat = copy.deepcopy(agent_data['state']['seq_mat'])
                 actions = np.array(agent_data['action'], dtype = np.int64)
                 rewards = np.array(agent_data['reward'], dtype = np.float32)
                 values = np.array(agent_data['value'], dtype = np.float32)
@@ -112,11 +125,12 @@ class Actor(Process):
                 self.replay_buffer.push({
                     'state': {
                         'observation': obs,
-                        'action_mask': mask
+                        'action_mask': mask,
+                        'seq_mat':seq_mat,
                     },
                     'action': actions,
                     'adv': advantages,
-                    'target': td_target
+                    'target': td_target,
                 })
         
         

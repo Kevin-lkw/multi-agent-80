@@ -44,14 +44,17 @@ class Learner(Process):
             batch = self.replay_buffer.sample(self.config['batch_size'])
             obs = torch.tensor(batch['state']['observation']).to(device)
             mask = torch.tensor(batch['state']['action_mask']).to(device)
+            seq = torch.tensor(batch['state']['seq_mat']).to(device)
             states = {
                 'observation': obs,
-                'action_mask': mask
+                'action_mask': mask,
+                'seq_mat': seq,
             }
             actions = torch.tensor(batch['action']).unsqueeze(-1).to(device)
             advs = torch.tensor(batch['adv']).to(device)
             targets = torch.tensor(batch['target']).to(device)
-
+            #print(batch['seq_history'][0],'\n'*3)
+            
             # Trick 1 Normalize advantages
             advs_mean = advs.mean()
             advs_std = advs.std()
@@ -66,17 +69,20 @@ class Learner(Process):
             old_log_probs = torch.log(old_probs).detach()
             for _ in range(self.config['epochs']):
                 # Create a new DataLoader for each epoch to ensure mini-batches are different
-                dataset = TensorDataset(obs, mask, actions, advs, targets)
+                dataset = TensorDataset(obs, mask, seq, actions, advs, targets)
                 batch_sampler = BatchSampler(SubsetRandomSampler(range(len(dataset))), self.config['mini_batch_size'], False)
                 data_loader = DataLoader(dataset, batch_sampler=batch_sampler)
 
                 for mini_batch in data_loader:
-                    obs_mb, mask_mb, actions_mb, advs_mb, targets_mb = mini_batch
+                    obs_mb, mask_mb, seq_mb, actions_mb, advs_mb, targets_mb = mini_batch
                     states_mb = {
                         'observation': obs_mb,
-                        'action_mask': mask_mb
+                        'action_mask': mask_mb,
+                        'seq_mat': seq_mb,
                     }
                     logits, values = model(states_mb)
+                    ## values = value_model(state_with_perfect_information)
+                    ## MCTS -> target values  max_depth = 25 * 4 max_width = 54 (usually 26++) - max_depth//4 (usually 26++) UCT score
                     action_dist = torch.distributions.Categorical(logits = logits)
                     probs = F.softmax(logits, dim = 1).gather(1, actions_mb)
                     log_probs = torch.log(probs)
