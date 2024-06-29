@@ -4,14 +4,19 @@ from model import get_model  # Assuming this is your ResNet18 model definition
 from env import TractorEnv  # Assuming this is your TractorEnv definition
 from wrapper import cardWrapper  # Assuming this is your cardWrapper definition
 import random
-
-# Configuration parameters
+import argparse 
+parser = argparse.ArgumentParser()
+parser.add_argument("--device", type=str, default='cuda:1')
+parser.add_argument("--model_path", type=str, default='best_LSTM_model/')
+parser.add_argument('--model', type=str, default='best_model_99')
+# # Configuration parameters
+args = parser.parse_args()
 config = {
-    'device': 'cuda',
-    'model_1_path': 'CNN_model_best_checkpoint/', ## checkpoint or best_model
-    'model_2_path': 'checkpoint/',
-    'model_1_name': 'best_model_292', ## model_ or best_model_
-    'model_2_name': 'model_0',
+    'device': args.device,
+    'model_1_path': args.model_path, ## checkpoint or best_model
+    'model_2_path': 'best_LSTM_model/',
+    'model_1_name': args.model,
+    'model_2_name': 'best_model_0',
     'batch_size': 2048,
 }
 
@@ -34,7 +39,7 @@ action_options_batch = []
 seq_history_batch = []
 envs = [TractorEnv() for _ in range(config['batch_size'])]
 for env in envs:
-    obs, action_options = env.reset(major='r')
+    obs, action_options = env.reset(banker_pos=np.random.randint(4),major='r')
     obs_batch.append(obs)
     action_options_batch.append(action_options)
     seq_history_batch.append([])
@@ -68,9 +73,9 @@ while not all(done_batch):
 
         state = {'observation': obs_mat_batch, 'action_mask': action_mask_batch, 'seq_mat': seq_mat_batch}
         if player % 2 == 0:
-            logits_batch, value_batch = model_1(state)
+            logits_batch = model_1(state)
         else:
-            logits_batch, value_batch = model_2(state)
+            logits_batch = model_2(state)
 
         actions_batch = [torch.distributions.Categorical(logits=logits).sample().item() for logits in logits_batch]
         values_batch = [value.item() for value in value_batch]
