@@ -6,7 +6,7 @@ search_engine = MCTS(simulate_number=1000)
 
 obs, action_options = env.reset(major='r')
 
-playing_rounds = 50
+playing_rounds = 0
 print("playing rounds",playing_rounds)
 for _ in range(playing_rounds):
     action = np.random.choice(len(action_options))
@@ -26,13 +26,13 @@ for key,value in data.items():
 data = env.pack_data()
 l1=[]
 l2=[]
-for i in range(10):
-    s1 = MCTS(simulate_number=100, regular_reward=True)
-    s2 = MCTS(simulate_number=100, regular_reward=False)
+for i in range(5):
+    s1 = MCTS(simulate_number=1000, regular_reward=True)
+    # s2 = MCTS(simulate_number=100, regular_reward=False)
     reward1 = s1.search(data)
-    reward2 = s2.search(data)
+    # reward2 = s2.search(data)
     l1.append(reward1)
-    l2.append(reward2)
+    # l2.append(reward2)
 print(l1)
 # print(l2)
 #output the variance of l1 and l2

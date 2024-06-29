@@ -40,6 +40,7 @@ class ModelPoolClient:
                 self.shared_model_list = ShareableList(name = name)
                 break
             except:
+                print('Waiting for model pool...')
                 time.sleep(0.1)
         self.capacity = len(self.shared_model_list) - 1
         self.model_list = [None] * self.capacity

@@ -52,8 +52,6 @@ class Learner(Process):
             obs = torch.tensor(batch['state']['observation']).to(device)
             mask = torch.tensor(batch['state']['action_mask']).to(device)
             seq = torch.tensor(batch['state']['seq_mat']).to(device)
-            per_info = torch.tensor(batch['per_info'])
-            search_engine = MCTS(simulate_number= 500)
             states = {
                 'observation': obs,
                 'action_mask': mask,
@@ -75,18 +73,18 @@ class Learner(Process):
             model.train(True) # Batch Norm training mode
             value_model.train(True) # Batch Norm training mode
 
-            old_logits, _ = model(states)
+            old_logits = model(states)
             old_probs = F.softmax(old_logits, dim = 1).gather(1, actions)
             old_log_probs = torch.log(old_probs).detach()
             for _ in range(self.config['epochs']):
                 # Create a new DataLoader for each epoch to ensure mini-batches are different
-                dataset = TensorDataset(per_obs,per_info, obs, mask, seq, actions, advs, targets)
+                dataset = TensorDataset(per_obs, obs, mask, seq, actions, advs, targets)
                 batch_sampler = BatchSampler(SubsetRandomSampler(range(len(dataset))), self.config['mini_batch_size'], False)
                 data_loader = DataLoader(dataset, batch_sampler=batch_sampler)
 
                 for mini_batch in data_loader:
 
-                    per_obs_mb, per_info_mb, obs_mb, mask_mb, seq_mb, actions_mb, advs_mb, targets_mb = mini_batch
+                    per_obs_mb, obs_mb, mask_mb, seq_mb, actions_mb, advs_mb, targets_mb = mini_batch
                     states_mb = {
                         'observation': obs_mb,
                         'action_mask': mask_mb,

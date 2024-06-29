@@ -1,3 +1,7 @@
 checkpoint
 __pycache__
 package.zip
+best_model
+best_LSTM_model
+LSTM_model
+model

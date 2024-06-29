@@ -58,7 +58,9 @@ class MCTS(TractorEnv):
         # action_options: a list of actions
         # state: the current state
         # action: the selected action
-
+        if len(action_options) == 0:
+            self.print_state()
+            raise ValueError("No action options")
         action = None
         max_ucb = float('-inf')
         unvisit = []

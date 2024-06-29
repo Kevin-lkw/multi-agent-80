@@ -22,12 +22,12 @@ class Actor(Process):
     
         # connect to model pool
         model_pool = ModelPoolClient(self.config['model_pool_name'])
-        mdoel_pool_value = ModelPoolClient('mdoel_pool_value')
-        
+        mdoel_pool_value = ModelPoolClient('model_pool_value')
+
         # create network model
         model = get_model()
         value_model = get_perfect_model()
-        
+
         # load initial model
         version = model_pool.get_latest_model()
         state_dict = model_pool.load_model(version)
@@ -43,6 +43,7 @@ class Actor(Process):
         policies = {player : model for player in env.agent_names} # all four players use the latest model
         
         for episode in range(self.config['episodes_per_actor']):
+            print(self.name, 'Episode', episode)
             # update model
             latest = model_pool.get_latest_model()
             if latest['id'] > version['id']:
@@ -129,7 +130,7 @@ class Actor(Process):
                 obs = next_obs
             #print(self.name, 'Episode', episode, 'Model', latest['id'], 'Reward', rewards)
 
-            search_engine = MCTS(simulate_number= 1)
+            search_engine = MCTS(simulate_number=1)
             # postprocessing episode data for each agent
             for agent_name, agent_data in episode_data.items():
                 if len(agent_data['action']) < len(agent_data['reward']):
@@ -147,8 +148,8 @@ class Actor(Process):
                 
                 td_target = rewards + next_values * self.config['gamma']
                 td_delta = td_target - values
-
-                mcts_target = np.array([search_engine(per_info)  for per_info in perfect_info], dtype = np.float32)
+                mcts_target = np.array([search_engine.search(per_info)  for per_info in perfect_info], dtype = np.float32)
+                # mcts_target = np.array([np.random.randint(0,1)  for per_info in perfect_info], dtype = np.float32)
                 advs = []
                 adv = 0
                 for delta in td_delta[::-1]:

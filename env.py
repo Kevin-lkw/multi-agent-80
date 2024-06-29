@@ -1,6 +1,7 @@
 import random
 from collections import Counter
 from mvGen import move_generator
+import copy
 
 class Error(Exception):
     def __init__(self, ErrorInfo):
@@ -875,11 +876,11 @@ class TractorEnv():
         return {
             "level": self.level,
             "major": self.major,
-            "covered_card": self.covered_card,
-            "player_decks": self.player_decks,
-            "played_cards": self.played_cards,
-            "history": self.history,
-            "player": self.current_player,
+            "covered_card": copy.deepcopy(self.covered_card),
+            "player_decks": copy.deepcopy(self.player_decks),
+            "played_cards": copy.deepcopy(self.played_cards),
+            "history": copy.deepcopy(self.history),
+            "player":  copy.deepcopy(self.current_player),
             "banker_pos": self.banker_pos,
             "round": self.round,
             "agent_names": self.agent_names,
