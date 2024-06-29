@@ -99,6 +99,7 @@ class Learner(Process):
                     #value_targets_mb = [search_engine(per_info)  for per_info in per_info_mb]
 
                     logits = model(states_mb)
+                    
                     values = value_model(per_states_mb)
                     ## values = value_model(state_with_perfect_information)
                     ## MCTS -> target values  max_depth = 25 * 4 max_width = 54 (usually 26++) - max_depth//4 (usually 26++) UCT score
@@ -124,9 +125,9 @@ class Learner(Process):
             model_pool.push(model.state_dict()) # push cpu-only tensor to model_pool
             model = model.to(device)
 
-            value_model = model.to('cpu')
+            value_model = value_model.to('cpu')
             model_pool_value.push(model.state_dict()) # push cpu-only tensor to model_pool
-            value_model = model.to(device)
+            value_model = value_model.to(device)
             
             # save checkpoints
             t = time.time()
