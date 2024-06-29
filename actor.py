@@ -43,7 +43,6 @@ class Actor(Process):
         policies = {player : model for player in env.agent_names} # all four players use the latest model
         
         for episode in range(self.config['episodes_per_actor']):
-            print(self.name, 'Episode', episode)
             # update model
             latest = model_pool.get_latest_model()
             if latest['id'] > version['id']:

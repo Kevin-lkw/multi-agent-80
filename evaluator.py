@@ -34,8 +34,6 @@ class Evaluator(Process):
                 best_state_dict = torch.load(f"{self.config['best_model_path']}best_model_{best_model_id}.pt")
                 best_model.load_state_dict(best_state_dict)
 
-            total_reward = 0
-
             # Initialize environments
             obs_batch = []
             action_options_batch = []
