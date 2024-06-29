@@ -11,9 +11,10 @@ import copy
 # 3. use UCB to select the action
 # 4. recursively calculate the node
 class MCTS(TractorEnv):
-    def __init__(self, simulate_number = 100):
+    def __init__(self, simulate_number = 100, regular_reward=False):
         super(MCTS, self).__init__()
         self.simulate_number = simulate_number
+        self.regular_reward = regular_reward
         # for same player deck, the action_options generate is the same
         # so we can use number to represent action
         self.visits = {}
@@ -52,7 +53,7 @@ class MCTS(TractorEnv):
             tuple(tuple(self._id2name(p) for p in move) for move in self.history)
         )
         return obs
-    def _select_action(self, action_options, state):
+    def _select_action(self, action_options, state, player):
         # UCB algorithm
         # action_options: a list of actions
         # state: the current state
@@ -63,7 +64,12 @@ class MCTS(TractorEnv):
         for a in range(len(action_options)):
             if (state, a) not in self.visits:
                 return a
-            reward = self.rewards.get((state, a), 0)
+            reward_dic = self.rewards.get((state, a), {i:0 for i in self.agent_names})
+            reward_val = reward_dic[self.agent_names[player]]
+            if self.regular_reward:
+                reward = reward_val // 5
+            else :
+                reward = reward_val
             visits_a = self.visits.get((state, a), 0)
             visits = self.visits.get(state, 0)
             if visits_a == 0:
@@ -77,51 +83,57 @@ class MCTS(TractorEnv):
     def update(self, state, action, rewards):
 
         self.visits[(state, action)] = self.visits.get((state, action), 0) + 1
-        self.rewards[(state, action)] = max(self.rewards.get((state, action), 0) , rewards)
+        if self.rewards.get((state, action), None) is None:
+            self.rewards[(state, action)] = {i:0 for i in self.agent_names}
+        for key,value in rewards.items():
+            self.rewards[(state, action)][key] += value
         self.visits[state] = self.visits.get(state, 0) + 1
     
-    def simulate(self, max_player, curr_player, action_options):
+    def simulate(self, curr_player, action_options):
         # get the action options
         state = self._get_full_obs()
         # choose the action using UCB algorithm
-        action = self._select_action(action_options, state) # the # of action in action_options
+        action = self._select_action(action_options, state, curr_player) # the # of action in action_options
         response = self.action_intpt(action_options[action], curr_player)
         # interact with env
         next_obs, next_action_options, rewards, done = self.step(response)
         if done:
-            print("done!")
-            print("rewards",rewards)
-            return rewards[self.agent_names[max_player]]
+            # print("done!")
+            # print("rewards",rewards)
+            return rewards
         next_player = (curr_player + 1) % 4
         if len(self.history) == 4: # finishing a round
             winner = self._checkWinner(curr_player)
             next_player = winner
-        all_rewards = self.simulate(max_player, next_player, next_action_options)
+        all_rewards = self.simulate(next_player, next_action_options)
         if rewards is not None:
-            all_rewards += rewards[self.agent_names[max_player]]
+            for key,value in rewards.items():
+                all_rewards[key] += value
         # self.print_state()
-        print("state ",state)
-        print("action ",action)
-        print("rewards ",rewards,all_rewards)
+        # print("state ",state)
+        # print("action ",action)
+        # print("rewards ",rewards,all_rewards)
         self.update(state, action, all_rewards)
         ### !! probably wrong! what's is the push stack mechanism in python?
         return all_rewards
     
     def search(self,packed_data):
         for i in range(self.simulate_number):
-            print("searching",i)
+            # print("searching",i)
             self.load(packed_data)
             action_options = self._get_action_options(self.player)
-            if len(action_options) == 0:
-                self.print_state()
             #here player is the one we want to maximize reward
-            self.simulate(self.player, self.player, action_options)
+            self.simulate(self.player, action_options)
         self.load(packed_data)
         state = self._get_full_obs()
         action_options = self._get_action_options(self.player)
         max_reward = float('-inf')
         for i in range(len(action_options)):
-            max_reward = max(max_reward, self.rewards.get((state, i), 0))
+            reward_dict = self.rewards.get((state, i), {j:0 for j in self.agent_names})
+            # print("reward_dict",reward_dict)
+            # print("vis time",self.visits.get((state, i), 1))
+            max_reward = max(max_reward,
+                reward_dict[self.agent_names[self.player]] / self.visits.get((state, i), 1))
         return max_reward
         
     
