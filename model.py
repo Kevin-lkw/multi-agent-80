@@ -3,8 +3,10 @@ from torch import nn
 def get_model():
     return CNNLSTMModel()
 
-class CNNModel(nn.Module):
+def get_perfect_model():
+    return PerfectCNNLSTMModel()
 
+class CNNModel(nn.Module):
     def __init__(self):
         nn.Module.__init__(self)
         self._tower = nn.Sequential(
@@ -79,6 +81,95 @@ class CNNLSTMModel(nn.Module):
             nn.Linear(256, 54)
         )
         
+        # self._value_branch = nn.Sequential(
+        #     nn.Linear((32 * 4 * 14) + 128, 256),
+        #     nn.Tanh(),
+        #     nn.Linear(256, 1)
+        # )
+        
+        # Apply orthogonal initialization
+        self._initialize_weights()
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                nn.init.orthogonal_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+                    
+    def forward(self, input_dict):
+        ob_mat = input_dict["observation"].float()
+        seq_mat = input_dict["seq_mat"]
+
+        # Process ob_mat with CNN
+        ob_embedding = self._tower_ob_mat(ob_mat)
+        
+        # Handle seq_mat processing
+        if seq_mat.numel() != 0:
+            # print(seq_mat.shape)
+            seq_embeddings = []
+            seq_mat = seq_mat.permute(1,0,2,3,4)
+            for seq in seq_mat:
+                seq_embedding = self._tower_seq_mat(seq.float())
+                seq_embeddings.append(seq_embedding)
+            seq_embeddings = torch.stack(seq_embeddings, dim=0)
+            seq_embeddings = seq_embeddings.permute(1,0,2)
+            # Process the sequence of embeddings with LSTM
+            lstm_out, (h_n, c_n) = self.lstm(seq_embeddings)
+            # print(h_n[-1].shape)
+            lstm_embedding = h_n[-1]
+        else:
+            lstm_embedding = torch.zeros(ob_embedding.size(0), 128, device=ob_embedding.device)
+        
+        # Concatenate ob_embedding and lstm_embedding
+        combined_embedding = torch.cat((ob_embedding, lstm_embedding), dim=1)
+        
+        # Get logits and value
+        logits = self._logits(combined_embedding)
+        # value = self._value_branch(combined_embedding)
+        
+        # Apply action mask
+        mask = input_dict["action_mask"].float()
+        inf_mask = torch.clamp(torch.log(mask), -1e38, 1e38)
+        masked_logits = logits + inf_mask
+        
+        return masked_logits
+
+class PerfectCNNLSTMModel(nn.Module):
+    def __init__(self):
+        super(PerfectCNNLSTMModel, self).__init__()
+        # CNN to process ob_mat
+        self._tower_ob_mat = nn.Sequential(
+            nn.Conv2d(128 + 6, 256, 3, 1, 1, bias=False),
+            nn.ReLU(True),
+            nn.Conv2d(256, 256, 3, 1, 1, bias=False),
+            nn.ReLU(True),
+            nn.Conv2d(256, 32, 3, 1, 1, bias=False),
+            nn.ReLU(True),
+            nn.Flatten()
+        )
+        
+        # CNN to process each 3x4x14 matrix in seq_mat
+        self._tower_seq_mat = nn.Sequential(
+            nn.Conv2d(12, 64, 3, 1, 1, bias=False),
+            nn.ReLU(True),
+            nn.Conv2d(64, 128, 3, 1, 1, bias=False),
+            nn.ReLU(True),
+            nn.Conv2d(128, 32, 3, 1, 1, bias=False),
+            nn.ReLU(True),
+            nn.Flatten()
+        )
+        
+        # LSTM to process the sequence of embeddings from seq_mat
+        self.lstm = nn.LSTM(32 * 4 * 14, 128, batch_first=True, bidirectional=False)
+        
+        # FFN to process the concatenated embeddings
+        # self._logits = nn.Sequential(
+        #     nn.Linear((32 * 4 * 14) + 128, 256),
+        #     nn.Tanh(),
+        #     nn.Linear(256, 54)
+        # )
+        
         self._value_branch = nn.Sequential(
             nn.Linear((32 * 4 * 14) + 128, 256),
             nn.Tanh(),
@@ -123,17 +214,15 @@ class CNNLSTMModel(nn.Module):
         combined_embedding = torch.cat((ob_embedding, lstm_embedding), dim=1)
         
         # Get logits and value
-        logits = self._logits(combined_embedding)
+        # logits = self._logits(combined_embedding)
         value = self._value_branch(combined_embedding)
         
         # Apply action mask
-        mask = input_dict["action_mask"].float()
-        inf_mask = torch.clamp(torch.log(mask), -1e38, 1e38)
-        masked_logits = logits + inf_mask
+        # mask = input_dict["action_mask"].float()
+        # inf_mask = torch.clamp(torch.log(mask), -1e38, 1e38)
+        # masked_logits = logits + inf_mask
         
-        return masked_logits, value
-
-
+        return  value
 
 class BasicBlock(nn.Module):
     expansion = 1

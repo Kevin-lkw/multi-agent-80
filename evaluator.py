@@ -75,13 +75,13 @@ class Evaluator(Process):
                     logits_batch, value_batch = [], []
 
                     state = {'observation': obs_mat_batch, 'action_mask': action_mask_batch, 'seq_mat': seq_mat_batch}
-                    if player % 2 == random.randint(0,1):
-                        logits_batch, value_batch = current_model(state)
+                    if player % 2 == 0:
+                        logits_batch = current_model(state)
                     else:
-                        logits_batch, value_batch = best_model(state)
+                        logits_batch = best_model(state)
 
                     actions_batch = [torch.distributions.Categorical(logits=logits).sample().item() for logits in logits_batch]
-                    values_batch = [value.item() for value in value_batch]
+                    
 
                 # Execute actions and get new state and reward
                 for i, env in enumerate(envs):

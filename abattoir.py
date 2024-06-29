@@ -8,10 +8,10 @@ import random
 # Configuration parameters
 config = {
     'device': 'cuda',
-    'model_1_path': 'best_model/', ## checkpoint or best_model
-    'model_2_path': 'best_model/',
-    'model_1_name': 'best_model_78', ## model_ or best_model_
-    'model_2_name': 'best_model_0',
+    'model_1_path': 'CNN_model_best_checkpoint/', ## checkpoint or best_model
+    'model_2_path': 'checkpoint/',
+    'model_1_name': 'best_model_292', ## model_ or best_model_
+    'model_2_name': 'model_0',
     'batch_size': 2048,
 }
 
@@ -40,14 +40,14 @@ for env in envs:
     seq_history_batch.append([])
 
 done_batch = [False] * config['batch_size']
-episode_rewards = [{} for _ in range(config['eval_batch_size'])]
+episode_rewards = [{} for _ in range(config['batch_size'])]
 
 while not all(done_batch):
     player = obs_batch[0]['id']
     obs_mat_batch, action_mask_batch, seq_mat_batch = [], [], []
     for i, (obs, action_options, seq_history) in enumerate(zip(obs_batch, action_options_batch, seq_history_batch)):
         if not done_batch[i]:
-            obs_mat, action_mask, seq_mat = wrapper.obsWrap(obs, action_options, seq_history)
+            obs_mat, action_mask, seq_mat = wrapper.obsWrap(obs, action_options, seq_history, None)
             obs_mat_batch.append(obs_mat)
             action_mask_batch.append(action_mask)
             seq_mat_batch.append(seq_mat)
@@ -67,7 +67,7 @@ while not all(done_batch):
         logits_batch, value_batch = [], []
 
         state = {'observation': obs_mat_batch, 'action_mask': action_mask_batch, 'seq_mat': seq_mat_batch}
-        if player % 2 == random.randint(0,1):
+        if player % 2 == 0:
             logits_batch, value_batch = model_1(state)
         else:
             logits_batch, value_batch = model_2(state)

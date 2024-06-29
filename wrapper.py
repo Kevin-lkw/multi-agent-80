@@ -8,6 +8,7 @@ class cardWrapper:
         self.point_sequence = point_sequence
         self.J_pos = self.suit_sequence.index('h')
         self.j_pos = self.suit_sequence.index('s')
+        self.suit_set = ['s','h','c','d']
         
     def name2pos(self, cardname):
         if cardname[0] == "J":
@@ -65,13 +66,46 @@ class cardWrapper:
             cards.append(card_name)
         
         return cards
+    
+    def _id2name(self, card_id): # card_id: int[0, 107]
+        # Locate in 1 single deck
+        NumInDeck = card_id % 54
+        # joker and Joker:
+        if NumInDeck == 52:
+            return "jo"
+        if NumInDeck == 53:
+            return "Jo"
+        # Normal cards:
+        pokernumber = self.card_scale[NumInDeck // 4]
+        pokersuit = self.suit_set[NumInDeck % 4]
+        return pokersuit + pokernumber
 
-    def obsWrap(self, obs, options, seq_history):
+    def obsWrap(self, obs, options, seq_history, player_decks= None, perfect=False):
         '''
         Wrapping the observation and craft the action_mask
         obs: raw obs from env
         '''
         id = obs['id']
+
+        
+
+        if perfect:
+            other_deck_mat = np.zeros((6,4,14))
+            for i in range(3):
+                player = (i-id) %4
+                if player:
+                    player -= 1
+                    player_decks_id = player_decks[i] # 取出player1的局面
+                    player_decks_name = []
+                    for pos in player_decks_id:
+                        pos = self._id2name(pos)
+                        player_decks_name.append(pos)
+                    self.add_card(other_deck_mat[player*2:(player +1)*2], player_decks_name) # 放到相对id的位置
+
+        
+
+
+
         seq_mat = []
         for history_response in seq_history:
             player = (history_response['player'] - id) % 4  # 计算相对当前player的id
@@ -87,9 +121,9 @@ class cardWrapper:
 
         batch_shape = (batch_size * 3, 4, 14)
 
-        num_batches = (len(seq_mat) + batch_size - 1) // batch_size
+        num_batches = len(seq_mat) // batch_size
 
-        seq_mat_padded = np.zeros((25, *batch_shape))
+        seq_mat_padded = np.zeros((24, *batch_shape))
 
         for i in range(num_batches):
             start_idx = i * batch_size
@@ -97,13 +131,11 @@ class cardWrapper:
             batch = seq_mat[start_idx:end_idx]
             
             if len(batch) < batch_size:
-                pad_len = batch_size - len(batch)
-                pad_shape = (pad_len, 3, 4, 14)
-                batch = np.concatenate((batch, np.zeros(pad_shape)), axis=0)
+                break
             
             batch = batch.reshape(batch_shape)
             
-            seq_mat_padded[i] = batch
+            seq_mat_padded[24 - num_batches + i] = batch
 
         major_mat = np.zeros((2, 4, 14))
         deck_mat = np.zeros((2, 4, 14))
@@ -126,6 +158,12 @@ class cardWrapper:
         action_mask = np.zeros(54)
         action_mask[:len(options)] = 1
 
-        return np.concatenate((major_mat, deck_mat, hist_mat, played_mat, option_mat)), action_mask, seq_mat_padded
+
+        if perfect:
+            # (128+6)*4*14
+            return np.concatenate((major_mat, deck_mat, other_deck_mat, hist_mat, played_mat, option_mat)), action_mask, seq_mat_padded
+            
+
+        return np.concatenate((major_mat, deck_mat,  hist_mat, played_mat, option_mat)), action_mask, seq_mat_padded
         
             

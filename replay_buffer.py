@@ -68,5 +68,7 @@ class ReplayBuffer:
             return res
         elif type(data[0]) == np.ndarray:
             return np.stack(data)
+        elif type(data[0]) == list:
+            return data
         else:
             return np.array(data)
