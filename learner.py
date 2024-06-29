@@ -3,7 +3,7 @@ import time
 import numpy as np
 import torch
 from torch.nn import functional as F
-
+import gc
 from replay_buffer import ReplayBuffer
 from model_pool import ModelPoolServer, ModelPoolClient
 from model import get_model, get_perfect_model
@@ -33,11 +33,11 @@ class Learner(Process):
         model_pool.push(model.state_dict()) # push cpu-only tensor to model_pool
         model_pool_value.push(value_model.state_dict())
         model = model.to(device)
-        value_model.to(device)
+        value_model = value_model.to(device)
 
         # training
         optimizer = torch.optim.Adam(model.parameters(), lr = self.config['lr'])
-        optimizer = torch.optim.Adam(value_model.parameters(), lr = self.config['lr'])
+        optimizer_value = torch.optim.Adam(value_model.parameters(), lr = self.config['lr'])
         
         # wait for initial samples
         while self.replay_buffer.size() < self.config['min_sample']:
@@ -46,6 +46,8 @@ class Learner(Process):
         cur_time = time.time()
         iterations = 0
         while True:
+            optimizer.zero_grad()
+            optimizer_value.zero_grad()
             # sample batch
             batch = self.replay_buffer.sample(self.config['batch_size'])
             per_obs = torch.tensor(batch['perfect_state']['perfect_observation']).to(device)
@@ -53,10 +55,15 @@ class Learner(Process):
             mask = torch.tensor(batch['state']['action_mask']).to(device)
             seq = torch.tensor(batch['state']['seq_mat']).to(device)
             states = {
-                'observation': obs,
-                'action_mask': mask,
-                'seq_mat': seq,
-            }
+                    'observation': obs,
+                    'action_mask': mask,
+                    'seq_mat': seq,
+                }
+            per_states = {
+                    'observation': per_obs,
+                    'action_mask': mask,
+                    'seq_mat': seq,
+                }
             actions = torch.tensor(batch['action']).unsqueeze(-1).to(device)
             advs = torch.tensor(batch['adv']).to(device)
             targets = torch.tensor(batch['target']).to(device)
@@ -73,26 +80,17 @@ class Learner(Process):
             model.train(True) # Batch Norm training mode
             value_model.train(True) # Batch Norm training mode
             
-            old_logits = model(states)
-            old_probs = F.softmax(old_logits, dim = 1).gather(1, actions)
-            old_log_probs = torch.log(old_probs).detach()
+            with torch.no_grad():
+                old_logits = model(states)
+                old_probs = F.softmax(old_logits, dim=1).gather(1, actions)
+                old_log_probs = torch.log(old_probs).detach()
             for _ in range(self.config['epochs']):
-                states_mb = {
-                    'observation': obs,
-                    'action_mask': mask,
-                    'seq_mat': seq,
-                }
-                per_states_mb = {
-                    'observation': per_obs,
-                    'action_mask': mask,
-                    'seq_mat': seq,
-                }
 
                 #value_targets_mb = [search_engine(per_info)  for per_info in per_info_mb]
 
-                logits = model(states_mb)
+                logits = model(states)
                 
-                values = value_model(per_states_mb)
+                values = value_model(per_states)
                 ## values = value_model(state_with_perfect_information)
                 ## MCTS -> target values  max_depth = 25 * 4 max_width = 54 (usually 26++) - max_depth//4 (usually 26++) UCT score
                 action_dist = torch.distributions.Categorical(logits = logits)
@@ -104,14 +102,22 @@ class Learner(Process):
                 policy_loss = -torch.mean(torch.min(surr1, surr2)) 
                 value_loss = torch.mean(F.mse_loss(values.squeeze(-1), targets))
                 entropy_loss = -torch.mean(action_dist.entropy())
-                policy_loss = self.config['entropy_coeff'] * entropy_loss
+                policy_loss += self.config['entropy_coeff'] * entropy_loss
                 #loss = policy_loss + self.config['value_coeff'] * value_loss + self.config['entropy_coeff'] * entropy_loss
                 optimizer.zero_grad()
+                optimizer_value.zero_grad()  
                 policy_loss.backward()
                 value_loss.backward()
-                print(value_loss.mean())
+                #print(value_loss.mean())
                 #loss.backward()
                 optimizer.step()
+                optimizer_value.step()
+
+                # 清理不再需要的变量和内存
+                del logits, values, action_dist, probs, log_probs, ratio, surr1, surr2
+                torch.cuda.empty_cache()
+
+                gc.collect()  # 显式调用垃圾回收器
 
             # push new model
             model = model.to('cpu')
