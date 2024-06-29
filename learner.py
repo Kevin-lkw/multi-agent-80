@@ -72,53 +72,46 @@ class Learner(Process):
             # calculate PPO loss
             model.train(True) # Batch Norm training mode
             value_model.train(True) # Batch Norm training mode
-
+            
             old_logits = model(states)
             old_probs = F.softmax(old_logits, dim = 1).gather(1, actions)
             old_log_probs = torch.log(old_probs).detach()
             for _ in range(self.config['epochs']):
-                # Create a new DataLoader for each epoch to ensure mini-batches are different
-                dataset = TensorDataset(per_obs, obs, mask, seq, actions, advs, targets)
-                batch_sampler = BatchSampler(SubsetRandomSampler(range(len(dataset))), self.config['mini_batch_size'], False)
-                data_loader = DataLoader(dataset, batch_sampler=batch_sampler)
+                states_mb = {
+                    'observation': obs,
+                    'action_mask': mask,
+                    'seq_mat': seq,
+                }
+                per_states_mb = {
+                    'observation': per_obs,
+                    'action_mask': mask,
+                    'seq_mat': seq,
+                }
 
-                for mini_batch in data_loader:
+                #value_targets_mb = [search_engine(per_info)  for per_info in per_info_mb]
 
-                    per_obs_mb, obs_mb, mask_mb, seq_mb, actions_mb, advs_mb, targets_mb = mini_batch
-                    states_mb = {
-                        'observation': obs_mb,
-                        'action_mask': mask_mb,
-                        'seq_mat': seq_mb,
-                    }
-                    per_states_mb = {
-                        'observation': per_obs_mb,
-                        'action_mask': mask_mb,
-                        'seq_mat': seq_mb,
-                    }
-
-                    #value_targets_mb = [search_engine(per_info)  for per_info in per_info_mb]
-
-                    logits = model(states_mb)
-                    
-                    values = value_model(per_states_mb)
-                    ## values = value_model(state_with_perfect_information)
-                    ## MCTS -> target values  max_depth = 25 * 4 max_width = 54 (usually 26++) - max_depth//4 (usually 26++) UCT score
-                    action_dist = torch.distributions.Categorical(logits = logits)
-                    probs = F.softmax(logits, dim = 1).gather(1, actions_mb)
-                    log_probs = torch.log(probs)
-                    ratio = torch.exp(log_probs - old_log_probs[:log_probs.size(0)])
-                    surr1 = ratio * advs_mb
-                    surr2 = torch.clamp(ratio, 1 - self.config['clip'], 1 + self.config['clip']) * advs_mb
-                    policy_loss = -torch.mean(torch.min(surr1, surr2)) 
-                    value_loss = torch.mean(F.mse_loss(values.squeeze(-1), targets_mb))
-                    entropy_loss = -torch.mean(action_dist.entropy())
-                    policy_loss = self.config['entropy_coeff'] * entropy_loss
-                    #loss = policy_loss + self.config['value_coeff'] * value_loss + self.config['entropy_coeff'] * entropy_loss
-                    optimizer.zero_grad()
-                    policy_loss.backward()
-                    value_loss.backward()
-                    #loss.backward()
-                    optimizer.step()
+                logits = model(states_mb)
+                
+                values = value_model(per_states_mb)
+                ## values = value_model(state_with_perfect_information)
+                ## MCTS -> target values  max_depth = 25 * 4 max_width = 54 (usually 26++) - max_depth//4 (usually 26++) UCT score
+                action_dist = torch.distributions.Categorical(logits = logits)
+                probs = F.softmax(logits, dim = 1).gather(1, actions)
+                log_probs = torch.log(probs)
+                ratio = torch.exp(log_probs - old_log_probs[:log_probs.size(0)])
+                surr1 = ratio * advs
+                surr2 = torch.clamp(ratio, 1 - self.config['clip'], 1 + self.config['clip']) * advs
+                policy_loss = -torch.mean(torch.min(surr1, surr2)) 
+                value_loss = torch.mean(F.mse_loss(values.squeeze(-1), targets))
+                entropy_loss = -torch.mean(action_dist.entropy())
+                policy_loss = self.config['entropy_coeff'] * entropy_loss
+                #loss = policy_loss + self.config['value_coeff'] * value_loss + self.config['entropy_coeff'] * entropy_loss
+                optimizer.zero_grad()
+                policy_loss.backward()
+                value_loss.backward()
+                print(value_loss.mean())
+                #loss.backward()
+                optimizer.step()
 
             # push new model
             model = model.to('cpu')
@@ -128,7 +121,6 @@ class Learner(Process):
             value_model = value_model.to('cpu')
             model_pool_value.push(model.state_dict()) # push cpu-only tensor to model_pool
             value_model = value_model.to(device)
-            
             # save checkpoints
             t = time.time()
             if t - cur_time > self.config['ckpt_save_interval']:
