@@ -15,19 +15,19 @@ if __name__ == '__main__':
         'gamma': 0.98,
         'lambda': 0.95,
         'min_sample': 200,
-        'batch_size': 64,
+        'batch_size': 2048,
         'epochs': 10,
         'clip': 0.2,
-        'lr': 3e-4,
+        'lr': 3e-5,
         'value_coeff': 1,
         'entropy_coeff': 0.01,
         'device': 'cuda',
-        'ckpt_save_interval': 1800,
+        'ckpt_save_interval': 60,
         'ckpt_save_path': 'LSTM_model/',
         'best_model_path': 'best_LSTM_model/',
         'eval_interval': 1,  # Sleep 1 seconds
-        'eval_batch_size': 4,
-        'mini_batch_size': 4
+        'eval_batch_size': 1024,
+        'mini_batch_size': 256
     }
     
     manager = Manager()

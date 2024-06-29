@@ -43,7 +43,6 @@ class Actor(Process):
         policies = {player : model for player in env.agent_names} # all four players use the latest model
         
         for episode in range(self.config['episodes_per_actor']):
-            print(self.name, 'Episode', episode)
             # update model
             latest = model_pool.get_latest_model()
             if latest['id'] > version['id']:
@@ -130,7 +129,7 @@ class Actor(Process):
                 obs = next_obs
             #print(self.name, 'Episode', episode, 'Model', latest['id'], 'Reward', rewards)
 
-            search_engine = MCTS(simulate_number=1)
+            
             # postprocessing episode data for each agent
             for agent_name, agent_data in episode_data.items():
                 if len(agent_data['action']) < len(agent_data['reward']):
@@ -146,10 +145,11 @@ class Actor(Process):
                 values = np.array(agent_data['value'], dtype = np.float32)
                 next_values = np.array(agent_data['value'][1:] + [0], dtype = np.float32)
                 
-                td_target = rewards + next_values * self.config['gamma']
+                td_target = rewards/10.0 + next_values * self.config['gamma']
                 td_delta = td_target - values
-                mcts_target = np.array([search_engine.search(per_info)  for per_info in perfect_info], dtype = np.float32)
-                # mcts_target = np.array([np.random.randint(0,1)  for per_info in perfect_info], dtype = np.float32)
+                #search_engine = MCTS(simulate_number=50)
+                #mcts_target = np.array([search_engine.search(per_info)  for per_info in perfect_info], dtype = np.float32)
+                #mcts_target = np.array([np.random.randint(0,1)  for per_info in perfect_info], dtype = np.float32)
                 advs = []
                 adv = 0
                 for delta in td_delta[::-1]:
@@ -157,7 +157,6 @@ class Actor(Process):
                     advs.append(adv) # GAE
                 advs.reverse()
                 advantages = np.array(advs, dtype = np.float32)
-                
                 # send samples to replay_buffer (per agent)
                 self.replay_buffer.push({
                     'state': {
@@ -172,7 +171,7 @@ class Actor(Process):
                     },
                     'action': actions,
                     'adv': advantages,
-                    'target': mcts_target,
+                    'target': td_target,
                     'per_info': perfect_info,
                 })
         
