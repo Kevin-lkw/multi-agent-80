@@ -11,7 +11,7 @@ import copy
 # 3. use UCB to select the action
 # 4. recursively calculate the node
 class MCTS(TractorEnv):
-    def __init__(self, simulate_number = 100, regular_reward=False):
+    def __init__(self, simulate_number = 100, regular_reward=True):
         super(MCTS, self).__init__()
         self.simulate_number = simulate_number
         self.regular_reward = regular_reward
@@ -61,14 +61,19 @@ class MCTS(TractorEnv):
 
         action = None
         max_ucb = float('-inf')
+        unvisit = []
         for a in range(len(action_options)):
-            if (state, a) not in self.visits:
-                return a
+            if (state,a) not in self.visits:
+                unvisit.append(a)
+        if len(unvisit) > 0:
+            return np.random.choice(unvisit)
+            # add some randomness to check stablity
+        for a in range(len(action_options)):
             reward_dic = self.rewards.get((state, a), {i:0 for i in self.agent_names})
             reward_val = reward_dic[self.agent_names[player]]
             if self.regular_reward:
                 reward = reward_val // 5
-            else :
+            else:
                 reward = reward_val
             visits_a = self.visits.get((state, a), 0)
             visits = self.visits.get(state, 0)
