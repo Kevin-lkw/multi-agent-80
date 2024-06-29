@@ -255,7 +255,7 @@ class TractorEnv():
             elif p[1] == "0" or p[1] == "K":
                 publicscore += 10
         
-        self._reward(publicscore*mult, winner)        
+        self._reward(winner, publicscore*mult)        
     
     def _setMajor(self):
         if self.major != 'n': # 非无主
@@ -846,6 +846,7 @@ class TractorEnv():
         return win_id
     
     def _reward(self, player, points):
+        # print("player ", player, " get ", points, " points")
         if (player-self.banker_pos) % 2 != 0: # farmer getting points
             self.score += points
         self.reward = {}
@@ -879,5 +880,7 @@ class TractorEnv():
             "played_cards": self.played_cards,
             "history": self.history,
             "player": self.current_player,
-            "bank_pos": self.banker_pos,
+            "banker_pos": self.banker_pos,
+            "round": self.round,
+            "agent_names": self.agent_names,
         }
