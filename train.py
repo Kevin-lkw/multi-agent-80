@@ -8,7 +8,7 @@ if __name__ == '__main__':
     config = {
         'replay_buffer_size': 2048,
         'replay_buffer_episode': 400,
-        'model_pool_size': 2,
+        'model_pool_size': 4,
         'model_pool_name': 'model-pool',
         'num_actors': 4,
         'episodes_per_actor': 8000,

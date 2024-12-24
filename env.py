@@ -2,6 +2,170 @@ import random
 from collections import Counter
 from mvGen import move_generator
 import copy
+import random
+from collections import Counter
+
+def generate_rule_based_action_options(action_options, hand, major_suit, point_order_wo_level, level, first_round):
+    """
+    Generate rule-based actions based on the given rules.
+    - action_options: List of all legal actions.
+    - hand: Current player's hand in card names.
+    - major_suit: The current major suit.
+    - point_order: List of point order for card ranking.
+    - level: The current level card.
+
+    Returns:
+        A list of rule-based actions.
+    """
+
+    # Utils        
+    def is_major(card):
+        """Determine if a card is a major card."""
+        return card[0] == major_suit or card in ['jo', 'Jo'] or card[1] == level
+
+    def filter_non_major(cards):
+        """Filter non-major cards."""
+        return [card for card in cards if not is_major(card)]
+
+    def filter_ban_by_rank(cards, ranks):
+        """Filter cards by ranks."""
+        return [card for card in cards if card[1] not in ranks]
+
+    point_order = point_order_wo_level + [level]
+    rule_based_options = []
+    
+    # 跟牌逻辑
+    if not first_round:
+        if len(action_options)>4:
+            # 按照牌数分开处理
+            for action in action_options:
+                if len(action) == 1:  # 单张
+                    # 分离主牌和副牌
+                    major_cards = [card for card in hand if is_major(card)]
+                    non_major_cards = filter_non_major(hand)
+                    major_cards = filter_ban_by_rank(major_cards, ['o'])
+                    # 主牌的最大和最小
+                    if major_cards:
+                        major_max = max(major_cards, key=lambda x: point_order.index(x[1]))
+                        major_min = min(major_cards, key=lambda x: point_order.index(x[1]))
+                        if action[0] in [major_max, major_min]:
+                            rule_based_options.append(action)
+
+                    # 副牌的最大和最小
+                    if non_major_cards:
+                        non_major_max = max(non_major_cards, key=lambda x: point_order.index(x[1]))
+                        non_major_min = min(non_major_cards, key=lambda x: point_order.index(x[1]))
+                        if action[0] in [non_major_max, non_major_min]:
+                            rule_based_options.append(action)
+
+                    # 分数牌和王牌
+                    if action[0][1] in ['5', '0', 'K'] or action[0] in ['jo', 'Jo']:
+                        rule_based_options.append(action)
+
+                elif len(action) == 2:  # 对子
+                    # 包含分数牌的组合
+                    if action[0][1] == action[1][1] and action[0][1] in ['5', '0', 'K']:
+                        rule_based_options.append(action)
+
+                    # 每种花色不含分数的最小组合
+                    suits_count = Counter(card[0] for card in filter_non_major(hand))
+                    if suits_count:
+                        for suit in suits_count.keys():
+                            suit_cards = [card for card in filter_non_major(hand) if card[0] == suit and card[1] not in ['5', '0', 'K']]
+                            if len(suit_cards) >= 2:
+                                suit_cards.sort(key=lambda x: point_order.index(x[1]))
+                                smallest_pair = suit_cards[:2]
+                                if action[0:2] == smallest_pair:
+                                    rule_based_options.append(action)
+
+                    # 所有可行的对子
+                    if action[0] == action[1]:
+                        rule_based_options.append(action)
+
+        if rule_based_options:
+            # 去重
+            rule_based_options = list(map(list, set(map(tuple, rule_based_options))))
+            return rule_based_options
+
+        # 其他牌数的直接返回
+        return action_options
+    
+
+
+    # 首轮出牌逻辑
+
+    # Drag tractors (pairs of consecutive cards)
+    for action in action_options:
+        if len(action) >= 3:
+            rule_based_options.append(action)
+    
+    if rule_based_options:
+        return rule_based_options
+    
+    # Non-major A's 
+    for action in action_options:
+        if len(action) == 1 and action[0][1] == 'A' and not is_major(action[0]):
+            rule_based_options.append(action)
+
+    if rule_based_options:
+        return rule_based_options
+
+    # Pairs (not 10 or 5, per suit)
+    for action in action_options:
+        if len(action) == 2:
+            card = action[0]
+            if card[1] not in ['5', '0'] and action[0] == action[1]:
+                rule_based_options.append(action)
+
+    if rule_based_options:
+        return rule_based_options
+
+    # Largest cards from the least common non-major suit 
+    non_major_cards = filter_non_major(hand)
+    non_score_cards = filter_ban_by_rank(non_major_cards, ['5', '0'])
+    suits_count = Counter(card[0] for card in non_major_cards)
+    if suits_count:
+        least_common_suit = suits_count.most_common()[-1][0]
+        least_common_suit_cards = [card for card in non_major_cards if card[0] == least_common_suit]
+        largest_card = max([card for card in least_common_suit_cards if card[0] == least_common_suit],
+                            key=lambda x: point_order.index(x[1]))
+        for action in action_options:
+            if len(action) == 1 and action[0] == largest_card:
+                rule_based_options.append(action)
+
+    # Largest major cards (not jokers)
+    major_cards = [card for card in hand if is_major(card) and card not in ['jo', 'Jo'] and card[1] not in ['5', '0', 'K']]
+    if major_cards:
+        largest_major = max(major_cards, key=lambda x: point_order.index(x[1]))
+        for action in action_options:
+            if len(action) == 1 and action[0] == largest_major:
+                rule_based_options.append(action)
+        
+    
+    # and pairs of 10 or 5
+    for action in action_options:
+        if len(action) == 2 and action[0] == action[1] and action[0][1] in ['5', '0']:
+            rule_based_options.append(action)
+
+    if rule_based_options:
+        return rule_based_options
+
+    # Jokers or single 5 or 10 (if no other options)
+    jokers50= [card for card in hand if card in ['jo', 'Jo'] or card[1] in ['5', '0', 'K']]
+    if jokers50:
+        for action in action_options:
+            if len(action) == 1 and action[0] in jokers50:
+                rule_based_options.append(action)
+
+    if rule_based_options:
+        return rule_based_options
+    
+    if action_options:
+        print(action_options)
+
+    return action_options
+
+
 
 class Error(Exception):
     def __init__(self, ErrorInfo):
@@ -25,7 +189,7 @@ class TractorEnv():
         self.agent_names = ['player_%d' % i for i in range(4)]
         
         
-    def reset(self, level='2', banker_pos=0, major='s'):
+    def reset(self, level='2', banker_pos=0, major='s', rule_based = False):
         self.point_order = ['2', '3', '4', '5', '6', '7', '8', '9', '0', 'J', 'Q', 'K', 'A']
         self.Major = ['jo', 'Jo']
         self.level = level
@@ -66,46 +230,22 @@ class TractorEnv():
         self.round += 1
         # Do the first round
         self.current_player = self.banker_pos
+
+        # rule_based_added
+        if rule_based:
+            action_options = self._get_action_options(self.banker_pos)
+            rule_based_action_options = generate_rule_based_action_options(action_options, 
+                                                                        [self._id2name(p) for p in self.player_decks[self.banker_pos]], 
+                                                                        self.major, self.point_order, self.level, self.round %4 ==1)
+            return self._get_obs(self.banker_pos), action_options, rule_based_action_options
         return self._get_obs(self.banker_pos), self._get_action_options(self.banker_pos)
 
     
-    def step(self, response): #response: dict{'player': player_id, 'action': action}
+    def step(self, response, rule_based = False): #response: dict{'player': player_id, 'action': action}
         # Each step receives a response and provides an obs
         self.reward = None
         curr_player = response['player']
         action = response['action']
-        # if self.round <= 100: # dealing stage
-        #     if len(action) != 0: # make report/snatch
-        #         if len(action) == 1:
-        #             if self.reporter: # Already reported
-        #                 self._raise_error(curr_player, "ALREADY_REPORTED")
-        #             repo_card = action[0]
-        #             repo_name = self._id2name(repo_card)
-        #             if repo_name[1] != self.level:
-        #                 self._raise_error(curr_player, "INVALID_MOVE")
-        #             self._report(action, curr_player)
-        #         elif len(action) == 2:
-        #             if not self.reporter: # Haven't reported yet
-        #                 self._raise_error(curr_player, "CANNOT_SNATCH")
-        #             if self.snatcher:
-        #                 self._raise_error(curr_player, "ALREADY_SNATCHED")
-        #             snatch_card = action[0]
-        #             snatch_name = self._id2name(snatch_card)
-        #             if (action[1] - action[0]) % 54 != 0: # not a pair
-        #                 self._raise_error(curr_player, "INVALID_MOVE")
-        #             if snatch_name[1] != self.level:
-        #                 self._raise_error(curr_player, "INVALID_MOVE")
-        #             self._snatch(action, curr_player)
-        #         else: # other lengths. INVALID_MOVE
-        #             self._raise_error(curr_player, "INVALID_MOVE")
-        #     if self.round == 100:
-        #         if not self.reporter: # not reported
-        #             self.random_pick_major()
-        #         self._deliver_public()
-        #         next_player = self.banker_pos
-        #     else:
-        #         new_deliver = self._deal()
-        #         next_player = (curr_player + 1) % 4
         real_action = self._checkLegalMove(action, curr_player)
         real_action = self._name2id_seq(real_action, self.player_decks[curr_player])
         self._play(curr_player, real_action)
@@ -118,9 +258,21 @@ class TractorEnv():
                 self.done = True
         self.round += 1
         self.current_player = next_player
-        if self.reward:
-            return self._get_obs(next_player), self._get_action_options(next_player), self.reward, self.done
-        return self._get_obs(next_player), self._get_action_options(next_player), None, self.done
+
+
+               # rule based added
+        if rule_based:
+            next_player = (response['player'] + 1) % 4
+            action_options = self._get_action_options(next_player)
+            rule_based_action_options = generate_rule_based_action_options(action_options, 
+                                                                        [self._id2name(p) for p in self.player_decks[next_player]], 
+                                                                        self.major, self.point_order, self.level,self.round %4 ==1)
+            return self._get_obs(next_player), action_options, self.reward, self.done, rule_based_action_options
+
+        return self._get_obs(next_player), self._get_action_options(next_player), self.reward, self.done
+        
+ 
+
         
     
     def _raise_error(self, player, info):
@@ -198,42 +350,6 @@ class TractorEnv():
         if len(self.history) == 4: # beginning of a new round
             self.history = []
         self.history.append(cards)
-        
-        
-    # def _deal(self):
-    #     target_player = self.round % 4
-    #     deal_card = self.card_todeal[0]
-    #     self.player_decks[target_player].append(deal_card)
-    #     self.card_todeal.remove(deal_card)
-    #     return deal_card
-    
-    # def _report(self, repo_card: list, reporter): # can't be 'jo' or 'Jo' when reporting
-    #     repo_name = self._id2name(repo_card[0])
-    #     major_suit = repo_name[0]
-    #     self.major = major_suit
-    #     self.reporter = reporter
-    
-    # def _snatch(self, snatch_card: list, snatcher):
-    #     snatch_name = self._id2name(snatch_card[0])
-    #     if snatch_name[1] == 'o': # Using joker to snatch, non-major
-    #         self.major = 'n'
-    #     else:
-    #         self.major = snatch_name[0]
-    #     self.snatcher = snatcher
-        
-    # def random_pick_major(self): # a major is picked randomly if there's no reporter in the dealing stage
-    #     if self.first_round: # The banker needs determining with the major in the first round
-    #         self.banker_pos = random.choice(range(4))
-    #     self.major = random.choice(self.suit_set)
-    
-    # def _deliver_public(self): # delivering public card to banker
-    #     for card in self.public_card:
-    #         self.player_decks[self.banker_pos].append(card)
-    
-    # def _cover(self, cover_card): # Doing no sanity check here
-    #     for card in cover_card:
-    #         self.covered_cards.append(card)
-    #         self.player_decks[self.banker_pos].remove(card)
             
     def _reveal(self, currplayer, winner): # 扣底
         if self._checkPokerType(self.history[0], (currplayer-3)%4) != "suspect":

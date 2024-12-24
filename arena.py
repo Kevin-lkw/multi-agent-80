@@ -6,7 +6,7 @@ from wrapper import cardWrapper  # Assuming this is your cardWrapper definition
 import random
 import argparse 
 parser = argparse.ArgumentParser()
-parser.add_argument("--device", type=str, default='cuda:1')
+parser.add_argument("--device", type=str, default='cuda')
 parser.add_argument("--model_path", type=str, default='best_LSTM_model/')
 parser.add_argument('--model', type=str, default='best_model_99')
 # # Configuration parameters

@@ -9,6 +9,7 @@ from model import get_model, get_perfect_model
 import copy
 from wrapper import cardWrapper
 from mcts import MCTS
+
 class Actor(Process):
     
     def __init__(self, config, replay_buffer):
@@ -51,7 +52,8 @@ class Actor(Process):
                 version = latest
             
             # run one episode and collect data
-            obs, action_options = env.reset(major='r')
+            print(111)
+            obs, action_options, rule_based_action_options = env.reset(major='r',rule_based=True)
             episode_data = {agent_name: {
                 'state' : {
                     'observation': [],
@@ -82,7 +84,7 @@ class Actor(Process):
                 agent_data['per_info'].append(perfect_info)
 
                 # get policy input
-                obs_mat, action_mask, seq_mat = self.wrapper.obsWrap(obs, action_options, seq_history)
+                obs_mat, action_mask, seq_mat = self.wrapper.obsWrap(obs, rule_based_action_options, seq_history)
                 agent_data['state']['observation'].append(obs_mat)
                 agent_data['state']['action_mask'].append(action_mask)
                 agent_data['state']['seq_mat'].append(seq_mat)
@@ -91,7 +93,7 @@ class Actor(Process):
                 state['seq_mat'] = torch.tensor(seq_mat, dtype = torch.float).unsqueeze(0)
 
                 # get value input
-                per_obs_mat, action_mask, seq_mat = self.wrapper.obsWrap(obs, action_options, seq_history, player_decks, perfect=True)
+                per_obs_mat, action_mask, seq_mat = self.wrapper.obsWrap(obs, rule_based_action_options, seq_history, player_decks, perfect=True)
                 agent_data['perfect_state']['perfect_observation'].append(per_obs_mat)
                 agent_data['perfect_state']['action_mask'].append(action_mask)
                 agent_data['perfect_state']['seq_mat'].append(seq_mat)
@@ -114,14 +116,15 @@ class Actor(Process):
 
 
                 # interpreting actions
-                action_cards = action_options[action]
+                # action_cards = action_options[action]
+                action_cards = rule_based_action_options[action]
                 response = env.action_intpt(action_cards, player)
                 # print(player,action,action_cards,response)
                 # response w.r.t. {'player': 2, 'action': [int[0,108)]}, where int is the list id of card
                 seq_history.append({'player':player, 'action': action_cards}) 
 
                 # interact with env
-                next_obs, action_options, rewards, done = env.step(response)
+                next_obs, action_options, rewards, done, rule_based_action_options = env.step(response,rule_based= True)
                 if rewards:
                     # rewards are added per four moves (1 move for each player) on all four players
                     for agent_name in rewards: 
